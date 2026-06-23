@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tambah User - VoltMeter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 400px; }
+        h2 { text-align: center; color: #1565C0; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        button { width: 100%; padding: 12px; background: #1565C0; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #0D47A1; }
+        .success { background: #E8F5E9; color: #2E7D32; padding: 10px; border-radius: 8px; text-align: center; margin-top: 10px; display: none; }
+        .error { background: #FFEBEE; color: #C62828; padding: 10px; border-radius: 8px; text-align: center; margin-top: 10px; display: none; }
+        .link { text-align: center; margin-top: 15px; }
+        .link a { color: #1565C0; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Tambah User Baru</h2>
+        <form id="form">
+            <div class="form-group">
+                <label>Nama Lengkap</label>
+                <input type="text" id="name" placeholder="Contoh: Budi Santoso" required>
+            </div>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" placeholder="Contoh: surveyor3" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Masukkan password" required>
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <select id="role">
+                    <option value="surveyor">Surveyor</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <button type="submit">SIMPAN</button>
+        </form>
+        <div class="success" id="successMsg"></div>
+        <div class="error" id="errorMsg"></div>
+        <div class="link">
+            <a href="login.php">← Kembali ke Login</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('name').value,
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                role: document.getElementById('role').value
+            };
+
+            try {
+                const res = await fetch('register.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await res.json();
+                
+                if (res.ok) {
+                    document.getElementById('successMsg').textContent = 'User berhasil dibuat! ID: ' + result.user_id;
+                    document.getElementById('successMsg').style.display = 'block';
+                    document.getElementById('errorMsg').style.display = 'none';
+                    document.getElementById('form').reset();
+                } else {
+                    document.getElementById('errorMsg').textContent = result.error;
+                    document.getElementById('errorMsg').style.display = 'block';
+                    document.getElementById('successMsg').style.display = 'none';
+                }
+            } catch (err) {
+                document.getElementById('errorMsg').textContent = 'Gagal koneksi ke server';
+                document.getElementById('errorMsg').style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
