@@ -1,14 +1,21 @@
 package org.ukrida.voltmeter.data.api
 
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import org.ukrida.voltmeter.data.model.Customer
 import org.ukrida.voltmeter.data.model.MeterRecord
+import org.ukrida.voltmeter.data.model.StatsResponse
+import org.ukrida.voltmeter.data.model.SubmitRecordResponse
+import org.ukrida.voltmeter.data.model.UploadResponse
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.model.WorkOrderResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 
 interface ApiService {
 
@@ -40,10 +47,30 @@ interface ApiService {
     suspend fun submitMeterRecord(
         @Header("Authorization") token: String,
         @Body record: Map<String, Any>
-    ): Response<Unit>
+    ): SubmitRecordResponse
 
     @GET("meter_records_today.php")
     suspend fun getTodayRecords(
         @Header("Authorization") token: String
     ): List<MeterRecord>
+
+    // ============= UPLOAD FOTO =============
+    @Multipart
+    @POST("upload.php")
+    suspend fun uploadFoto(
+        @Header("Authorization") token: String,
+        @Part photo: MultipartBody.Part,
+        @Part("customer_id") customerId: RequestBody
+    ): UploadResponse
+
+    // ============= ADMIN ENDPOINTS =============
+    @GET("kunjungan.php?statistik=1")
+    suspend fun getStatistics(
+        @Header("Authorization") token: String
+    ): StatsResponse
+
+    @GET("users.php")
+    suspend fun getUsers(
+        @Header("Authorization") token: String
+    ): List<User>
 }

@@ -1,8 +1,10 @@
 package org.ukrida.voltmeter.ui.screen
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +41,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,11 +59,17 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import org.ukrida.voltmeter.data.model.Customer
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("MissingPermission")
 @Composable
 fun RecordingScreen(
     viewModel: VoltMeterViewModel,
@@ -71,10 +80,11 @@ fun RecordingScreen(
     val isLoading = viewModel.isLoading.value
     val currentReading = viewModel.currentReading.value
     val visitStatus = viewModel.visitStatus.value
-    val photoPath = viewModel.photoPath.value
+    val photoUriString = viewModel.photoUriString.value
     val notes = viewModel.notes.value
 
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+    var currentFile by remember { mutableStateOf<File?>(null) }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
 
     val statusOptions = listOf("TERBACA_NORMAL", "RUMAH_KOSONG", "HALANGAN")
@@ -83,6 +93,58 @@ fun RecordingScreen(
 
     val successMsg = viewModel.successMessage.value
     val errorMsg = viewModel.errorMessage.value
+
+    // GPS State
+    var currentLat by remember { mutableStateOf(0.0) }
+    var currentLng by remember { mutableStateOf(0.0) }
+    var hasLocationPermission by remember { mutableStateOf(false) }
+
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    // Check location permissions
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hasLocationPermission = granted
+    }
+
+    LaunchedEffect(Unit) {
+        val fineLoc = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarseLoc = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (fineLoc == PackageManager.PERMISSION_GRANTED || coarseLoc == PackageManager.PERMISSION_GRANTED) {
+            hasLocationPermission = true
+        } else {
+            locationPermissionLauncher.launch(arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ))
+        }
+    }
+
+    DisposableEffect(hasLocationPermission) {
+        var locationCallback: LocationCallback? = null
+        if (hasLocationPermission) {
+            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
+                .setMinUpdateIntervalMillis(5000)
+                .build()
+
+            locationCallback = object : LocationCallback() {
+                override fun onLocationResult(p0: LocationResult) {
+                    p0.lastLocation?.let { loc ->
+                        currentLat = loc.latitude
+                        currentLng = loc.longitude
+                    }
+                }
+            }
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+        }
+        onDispose {
+            locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
+        }
+    }
+
 
     LaunchedEffect(successMsg) {
         successMsg?.let {
@@ -104,7 +166,7 @@ fun RecordingScreen(
         if (success) {
             cameraImageUri?.let {
                 imageUri = it
-                viewModel.setPhotoPath(it.toString())
+                viewModel.setPhoto(it.toString(), currentFile)
             }
         }
     }
@@ -115,6 +177,7 @@ fun RecordingScreen(
     ) { granted ->
         if (granted) {
             val file = File(context.cacheDir, "meter_photo_${System.currentTimeMillis()}.jpg")
+            currentFile = file
             cameraImageUri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.provider",
@@ -273,9 +336,9 @@ fun RecordingScreen(
                 Text("Dokumentasi Foto (Wajib)", fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                if (photoPath != null) {
+                if (photoUriString != null) {
                     AsyncImage(
-                        model = Uri.parse(photoPath),
+                        model = Uri.parse(photoUriString),
                         contentDescription = "Foto Meter",
                         modifier = Modifier
                             .fillMaxWidth()
@@ -291,6 +354,7 @@ fun RecordingScreen(
                         when {
                             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED -> {
                                 val file = File(context.cacheDir, "meter_photo_${System.currentTimeMillis()}.jpg")
+                                currentFile = file
                                 cameraImageUri = FileProvider.getUriForFile(
                                     context,
                                     "${context.packageName}.provider",
@@ -312,9 +376,19 @@ fun RecordingScreen(
                 ) {
                     Icon(Icons.Default.CameraAlt, null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (photoPath != null) "Ubah Foto" else "Ambil Foto")
+                    Text(if (photoUriString != null) "Ubah Foto" else "Ambil Foto")
                 }
             }
+        }
+
+        // Location Status
+        if (!hasLocationPermission) {
+            Text(
+                "Izin lokasi dibutuhkan untuk verifikasi kunjungan",
+                color = Color.Red,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
 
         // Buttons
@@ -331,10 +405,10 @@ fun RecordingScreen(
             }
 
             Button(
-                onClick = { viewModel.submitMeterRecord() },
+                onClick = { viewModel.submitMeterRecord(latitude = currentLat, longitude = currentLng) },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
-                enabled = currentReading.isNotEmpty() && photoPath != null && !isLoading
+                enabled = photoUriString != null && !isLoading && hasLocationPermission
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(

@@ -55,9 +55,12 @@ dependencies {
 //Gambar dan icon
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.5.0")
+    
+    // Location
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.compose.ui)
+
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
