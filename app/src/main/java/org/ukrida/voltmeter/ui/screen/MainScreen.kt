@@ -183,15 +183,44 @@ fun MainScreen(
             }
 
             composable("admin_users") {
-                AdminUserScreen(viewModel = viewModel)
+                AdminUserScreen(
+                    viewModel = viewModel,
+                    onNavigateToAddUser = {
+                        innerNavController.navigate("admin_register_user")
+                    }
+                )
+            }
+
+            composable("admin_register_user") {
+                org.ukrida.voltmeter.ui.screen.admin.RegisterScreen(
+                    viewModel = viewModel,
+                    onBack = {
+                        innerNavController.popBackStack()
+                    }
+                )
             }
 
             composable("admin_customers") {
-                // Reuse CustomerListScreen for Admin for now (Read-Only)
+                LaunchedEffect(Unit) {
+                    viewModel.loadAllCustomers()
+                }
+                
+                // Reuse CustomerListScreen for Admin for now (Read-Only list, clickable to detail)
                 CustomerListScreen(
                     viewModel = viewModel,
-                    onCustomerClick = {
-                        // Admin doesn't navigate to recording, maybe detail screen in the future
+                    onCustomerClick = { customer ->
+                        innerNavController.navigate("admin_customer_detail/${customer.customer_id}")
+                    }
+                )
+            }
+
+            composable("admin_customer_detail/{customerId}") { backStackEntry ->
+                val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
+                org.ukrida.voltmeter.ui.screen.admin.AdminCustomerDetailScreen(
+                    viewModel = viewModel,
+                    customerId = customerId,
+                    onBack = {
+                        innerNavController.popBackStack()
                     }
                 )
             }
