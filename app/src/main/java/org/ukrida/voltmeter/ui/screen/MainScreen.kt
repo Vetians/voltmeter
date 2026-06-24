@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,8 +28,12 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import org.ukrida.voltmeter.ui.navigation.AdminBottomNav
 import org.ukrida.voltmeter.ui.navigation.BottomNav
+import org.ukrida.voltmeter.ui.screen.admin.AdminHomeScreen
+import org.ukrida.voltmeter.ui.screen.admin.AdminUserScreen
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,6 +44,9 @@ fun MainScreen(
     viewModel: VoltMeterViewModel
 ) {
     val innerNavController = rememberNavController()
+    val navBackStackEntry by innerNavController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
     val snackbarHostState = remember { SnackbarHostState() }
     val isLoading = viewModel.isLoading.value
     val successMessage = viewModel.successMessage.value
@@ -55,7 +63,7 @@ fun MainScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text("VoltMeter")
+                    Text(if (role == "admin") "VoltMeter Admin" else "VoltMeter")
                 },
                 actions = {
                     IconButton(
@@ -91,11 +99,15 @@ fun MainScreen(
             )
         },
         bottomBar = {
-            BottomNav(innerNavController)
+            if (role == "admin") {
+                AdminBottomNav(innerNavController, currentRoute)
+            } else {
+                BottomNav(innerNavController)
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (selectedCustomer == null) {
+            if (role != "admin" && selectedCustomer == null) {
                 FloatingActionButton(
                     onClick = { viewModel.syncWorkOrders() },
                     containerColor = Color(0xFF1565C0)
@@ -118,9 +130,10 @@ fun MainScreen(
     ) { padding ->
         NavHost(
             navController = innerNavController,
-            startDestination = "home",
+            startDestination = if (role == "admin") "admin_dashboard" else "home",
             modifier = Modifier.padding(padding)
         ) {
+            // ================== PETUGAS ROUTES ==================
             composable("home") {
                 HomeScreen(viewModel = viewModel)
             }
@@ -151,6 +164,39 @@ fun MainScreen(
             }
 
             composable("profile") {
+                ProfileScreen(
+                    viewModel = viewModel,
+                    onLogout = {
+                        navController.navigate("login") {
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
+            // ================== ADMIN ROUTES ==================
+            composable("admin_dashboard") {
+                AdminHomeScreen(viewModel = viewModel)
+            }
+
+            composable("admin_users") {
+                AdminUserScreen(viewModel = viewModel)
+            }
+
+            composable("admin_customers") {
+                // Reuse CustomerListScreen for Admin for now (Read-Only)
+                CustomerListScreen(
+                    viewModel = viewModel,
+                    onCustomerClick = {
+                        // Admin doesn't navigate to recording, maybe detail screen in the future
+                    }
+                )
+            }
+
+            composable("admin_profile") {
                 ProfileScreen(
                     viewModel = viewModel,
                     onLogout = {

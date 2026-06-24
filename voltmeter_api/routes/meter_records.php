@@ -15,8 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $db->prepare("
         INSERT INTO meter_records 
         (record_id, customer_id, meter_number, previous_reading, current_reading, usage_kwh,
-         record_date, record_time, visit_status, latitude, longitude, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         record_date, record_time, visit_status, photo_path, latitude, longitude, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     
     $stmt->execute([
@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $input['record_date'] ?? date('Y-m-d'),
         $input['record_time'] ?? date('H:i:s'),
         $input['visit_status'] ?? 'TERBACA_NORMAL',
+        $input['photo_path'] ?? null,
         $input['latitude'] ?? 0,
         $input['longitude'] ?? 0,
         $input['notes'] ?? ''

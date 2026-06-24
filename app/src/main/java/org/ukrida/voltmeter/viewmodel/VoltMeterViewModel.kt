@@ -5,10 +5,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.ukrida.voltmeter.data.model.Customer
 import org.ukrida.voltmeter.data.model.MeterRecord
+import org.ukrida.voltmeter.data.model.StatsResponse
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.repository.VoltMeterRepository
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -19,6 +25,10 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     var currentUser = mutableStateOf<User?>(null)
     var loginError = mutableStateOf<String?>(null)
     var isLoggedIn = mutableStateOf(false)
+
+    // ============= ADMIN STATE =============
+    var adminStats = mutableStateOf(StatsResponse())
+    var adminUsersList = mutableStateOf<List<User>>(emptyList())
 
     // ============= CUSTOMER STATE =============
     var customers = mutableStateOf<List<Customer>>(emptyList())
@@ -31,7 +41,8 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     // ============= RECORDING STATE =============
     var currentReading = mutableStateOf("")
     var visitStatus = mutableStateOf("TERBACA_NORMAL")
-    var photoPath = mutableStateOf<String?>(null)
+    var photoUriString = mutableStateOf<String?>(null)
+    var photoFile = mutableStateOf<File?>(null) // Save the actual file reference
     var notes = mutableStateOf("")
     var currentMeterIndex = mutableStateOf(0)
 
@@ -67,6 +78,30 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         isLoggedIn.value = false
         customers.value = emptyList()
         meterRecords.value = emptyList()
+        adminUsersList.value = emptyList()
+    }
+
+    // ============= ADMIN =============
+    fun loadAdminData() {
+        val token = currentUser.value?.token ?: return
+        
+        // Load Stats
+        viewModelScope.launch {
+            try {
+                adminStats.value = repo.getStatistics(token)
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Load admin stats gagal", e)
+            }
+        }
+
+        // Load Users
+        viewModelScope.launch {
+            try {
+                adminUsersList.value = repo.getUsers(token)
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Load admin users gagal", e)
+            }
+        }
     }
 
     // ============= WORK ORDERS =============
@@ -100,7 +135,8 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         selectedCustomer.value = customer
         currentMeterIndex.value = 0
         currentReading.value = ""
-        photoPath.value = null
+        photoUriString.value = null
+        photoFile.value = null
         notes.value = ""
         visitStatus.value = "TERBACA_NORMAL"
     }
@@ -114,29 +150,49 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         visitStatus.value = status
     }
 
-    fun setPhotoPath(path: String?) {
-        photoPath.value = path
+    fun setPhoto(uri: String?, file: File?) {
+        photoUriString.value = uri
+        photoFile.value = file
     }
 
     fun setNotes(n: String) {
         notes.value = n
     }
 
-    fun submitMeterRecord() {
+    fun submitMeterRecord(latitude: Double = 0.0, longitude: Double = 0.0) {
         val token = currentUser.value?.token ?: return
         val customer = selectedCustomer.value ?: return
-        val reading = currentReading.value.toDoubleOrNull()
+        
+        // If "RUMAH_KOSONG", reading can be 0 or empty, handled by the API rules.
+        // We'll parse it safely to 0.0 if empty.
+        val reading = currentReading.value.toDoubleOrNull() ?: 0.0
+        
+        val meter = customer.meters.getOrNull(currentMeterIndex.value)
+        val pFile = photoFile.value
 
-        if (reading == null) {
-            errorMessage.value = "Masukkan angka meter yang valid"
+        if (pFile == null) {
+            errorMessage.value = "Foto wajib diambil"
             return
         }
-
-        val meter = customer.meters.getOrNull(currentMeterIndex.value)
 
         viewModelScope.launch {
             try {
                 isLoading.value = true
+                
+                // 1. Upload Photo First
+                val requestFile = pFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                val body = MultipartBody.Part.createFormData("photo", pFile.name, requestFile)
+                val customerIdBody = customer.customer_id.toRequestBody("text/plain".toMediaTypeOrNull())
+                
+                val uploadResponse = repo.uploadFoto(token, body, customerIdBody)
+                
+                if (!uploadResponse.success) {
+                    errorMessage.value = "Gagal upload foto: ${uploadResponse.message}"
+                    isLoading.value = false
+                    return@launch
+                }
+
+                // 2. Submit Record
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
@@ -148,18 +204,24 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                     "record_date" to dateFormat.format(Date()),
                     "record_time" to timeFormat.format(Date()),
                     "visit_status" to visitStatus.value,
-                    "latitude" to customer.latitude,
-                    "longitude" to customer.longitude,
+                    "photo_path" to uploadResponse.photo_path,
+                    "latitude" to latitude, // Use parameter passed from FusedLocation
+                    "longitude" to longitude,
                     "notes" to notes.value
                 )
 
-                repo.submitMeterRecord(token, record)
-                successMessage.value = "Pencatatan berhasil disimpan"
-
-                // Reset state
-                currentReading.value = ""
-                photoPath.value = null
-                notes.value = ""
+                val submitResp = repo.submitMeterRecord(token, record)
+                if (submitResp.success) {
+                    successMessage.value = "Pencatatan berhasil disimpan"
+                    
+                    // Reset state
+                    currentReading.value = ""
+                    photoUriString.value = null
+                    photoFile.value = null
+                    notes.value = ""
+                } else {
+                    errorMessage.value = "Gagal menyimpan data ke server."
+                }
 
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Submit gagal", e)

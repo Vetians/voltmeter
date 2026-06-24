@@ -1,0 +1,11 @@
+# Ignore uploads but keep the directory
+/uploads/photos/*
+!/uploads/photos/.gitkeep
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore test files
+test_api.php
+reset_passwords.php

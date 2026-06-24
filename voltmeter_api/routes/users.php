@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     http_response_code(201);
     echo json_encode(['success' => true]);
 } else {
-    $stmt = $db->prepare("SELECT id, user_id, name, username, role FROM users");
+    $stmt = $db->prepare("SELECT id, user_id, full_name AS name, username, role FROM users");
     $stmt->execute();
-    echo json_encode($stmt->fetchAll());
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
