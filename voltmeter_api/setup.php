@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS meter_records (
     record_date DATE NOT NULL,
     record_time TIME NOT NULL,
     visit_status ENUM('TERBACA_NORMAL', 'RUMAH_KOSONG', 'HALANGAN') DEFAULT 'TERBACA_NORMAL',
+    photo_path VARCHAR(255) NULL,
     latitude DOUBLE DEFAULT 0,
     longitude DOUBLE DEFAULT 0,
     notes TEXT,

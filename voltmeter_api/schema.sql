@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS meter_records (
     record_date DATE NOT NULL,
     record_time TIME NOT NULL,
     visit_status ENUM('TERBACA_NORMAL', 'RUMAH_KOSONG', 'HALANGAN') DEFAULT 'TERBACA_NORMAL',
+    photo_path VARCHAR(255) NULL,
     latitude DOUBLE DEFAULT 0,
     longitude DOUBLE DEFAULT 0,
     notes TEXT,
@@ -80,7 +81,7 @@ CREATE TABLE IF NOT EXISTS meter_records (
 
 -- Insert Default Users (password: admin123)
 -- Generate hash: php -r "echo password_hash('admin123', PASSWORD_DEFAULT);"
-SET @hash = '$2y$10$YourHashedPasswordHere';
+SET @hash = '$2y$10$vMGdkg9gzzS4a1w/FWwan.Ywb16/rJ96zo7VxSFOzPOKUWvhaQfr.';
 
 INSERT INTO users (user_id, username, password, full_name, role) VALUES
 ('USR001', 'admin', @hash, 'Administrator', 'admin'),
