@@ -11,11 +11,13 @@ import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.model.WorkOrderResponse
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Query
 
 interface ApiService {
 
@@ -40,8 +42,22 @@ interface ApiService {
     // ============= METER RECORDS =============
     @GET("meter_records.php")
     suspend fun getMeterRecords(
-        @Header("Authorization") token: String
+        @Header("Authorization") token: String,
+        @Query("customer_id") customerId: String? = null
     ): List<MeterRecord>
+
+    // ============= METERS (MANAGE) =============
+    @POST("meters.php")
+    suspend fun addMeter(
+        @Header("Authorization") token: String,
+        @Body request: Map<String, String>
+    ): Response<Unit>
+
+    @DELETE("meters.php")
+    suspend fun deleteMeter(
+        @Header("Authorization") token: String,
+        @Query("meter_number") meterNumber: String
+    ): Response<Unit>
 
     @POST("meter_records.php")
     suspend fun submitMeterRecord(
@@ -73,4 +89,10 @@ interface ApiService {
     suspend fun getUsers(
         @Header("Authorization") token: String
     ): List<User>
+
+    @POST("users.php")
+    suspend fun insertUser(
+        @Header("Authorization") token: String,
+        @Body user: User
+    ): retrofit2.Response<Unit>
 }

@@ -36,31 +36,51 @@ import androidx.compose.ui.unit.sp
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
 
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Scaffold
+
 @Composable
-fun AdminUserScreen(viewModel: VoltMeterViewModel) {
+fun AdminUserScreen(
+    viewModel: VoltMeterViewModel,
+    onNavigateToAddUser: () -> Unit
+) {
     val users = viewModel.adminUsersList.value
 
     LaunchedEffect(Unit) {
         viewModel.loadAdminData()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Daftar Pengguna",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToAddUser,
+                containerColor = Color(0xFF1565C0),
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Tambah Pengguna")
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
         ) {
-            items(users) { user ->
-                UserCard(user)
+            Text(
+                text = "Daftar Pengguna",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(users) { user ->
+                    UserCard(user)
+                }
             }
         }
     }

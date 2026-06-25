@@ -33,6 +33,10 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     // ============= CUSTOMER STATE =============
     var customers = mutableStateOf<List<Customer>>(emptyList())
     var selectedCustomer = mutableStateOf<Customer?>(null)
+    
+    // For Admin Customer Detail
+    var selectedAdminCustomer = mutableStateOf<Customer?>(null)
+    var customerHistory = mutableStateOf<List<MeterRecord>>(emptyList())
 
     // ============= METER RECORD STATE =============
     var meterRecords = mutableStateOf<List<MeterRecord>>(emptyList())
@@ -100,6 +104,89 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 adminUsersList.value = repo.getUsers(token)
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load admin users gagal", e)
+            }
+        }
+    }
+
+    fun insertUser(user: User) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                repo.insertUser(token, user)
+                successMessage.value = "Pengguna berhasil ditambahkan"
+                // Reload list after insert
+                loadAdminData()
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Insert user gagal", e)
+                errorMessage.value = "Gagal menambah pengguna: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun loadAllCustomers() {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                customers.value = repo.getCustomers(token)
+                
+                // If a customer is currently selected, refresh its data
+                selectedAdminCustomer.value?.let { selected ->
+                    selectedAdminCustomer.value = customers.value.find { it.customer_id == selected.customer_id } ?: selected
+                }
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Load all customers gagal", e)
+                errorMessage.value = "Gagal memuat pelanggan: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun loadCustomerHistory(customerId: String) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                customerHistory.value = repo.getMeterRecords(token, customerId)
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Load history gagal", e)
+            }
+        }
+    }
+
+    fun addMeter(customerId: String, meterNumber: String) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                repo.addMeter(token, customerId, meterNumber)
+                successMessage.value = "Meteran berhasil ditambahkan"
+                loadAllCustomers() // Reload to get updated meters
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Add meter gagal", e)
+                errorMessage.value = "Gagal menambah meteran: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun deleteMeter(meterNumber: String) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                repo.deleteMeter(token, meterNumber)
+                successMessage.value = "Meteran berhasil dihapus"
+                loadAllCustomers() // Reload to get updated meters
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Delete meter gagal", e)
+                errorMessage.value = "Gagal menghapus meteran: ${e.message}"
+            } finally {
+                isLoading.value = false
             }
         }
     }

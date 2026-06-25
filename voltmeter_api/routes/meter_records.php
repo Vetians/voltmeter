@@ -45,9 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     echo json_encode(['success' => true, 'record_id' => $recordId]);
     
 } else {
-    // GET - List all records
-    $stmt = $db->prepare("SELECT * FROM meter_records ORDER BY record_date DESC, record_time DESC LIMIT 50");
-    $stmt->execute();
-    $records = $stmt->fetchAll();
+    // GET - List records, with optional customer_id filter
+    $customerId = $_GET['customer_id'] ?? null;
+    
+    if ($customerId) {
+        $stmt = $db->prepare("SELECT * FROM meter_records WHERE customer_id = ? ORDER BY record_date DESC, record_time DESC LIMIT 50");
+        $stmt->execute([$customerId]);
+    } else {
+        $stmt = $db->prepare("SELECT * FROM meter_records ORDER BY record_date DESC, record_time DESC LIMIT 50");
+        $stmt->execute();
+    }
+    
+    $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode($records);
 }

@@ -34,12 +34,25 @@ class VoltMeterRepository(private val api: ApiService) {
     }
 
     // ============= METER RECORDS =============
-    suspend fun getMeterRecords(token: String): List<MeterRecord> {
-        return api.getMeterRecords("Bearer $token")
+    suspend fun getMeterRecords(token: String, customerId: String? = null): List<MeterRecord> {
+        return api.getMeterRecords("Bearer $token", customerId)
     }
 
     suspend fun submitMeterRecord(token: String, record: Map<String, Any>): SubmitRecordResponse {
         return api.submitMeterRecord("Bearer $token", record)
+    }
+
+    // ============= METERS (MANAGE) =============
+    suspend fun addMeter(token: String, customerId: String, meterNumber: String) {
+        val request = mapOf(
+            "customer_id" to customerId,
+            "meter_number" to meterNumber
+        )
+        api.addMeter("Bearer $token", request)
+    }
+
+    suspend fun deleteMeter(token: String, meterNumber: String) {
+        api.deleteMeter("Bearer $token", meterNumber)
     }
 
     suspend fun getTodayRecords(token: String): List<MeterRecord> {
@@ -58,5 +71,9 @@ class VoltMeterRepository(private val api: ApiService) {
 
     suspend fun getUsers(token: String): List<User> {
         return api.getUsers("Bearer $token")
+    }
+
+    suspend fun insertUser(token: String, user: User) {
+        api.insertUser("Bearer $token", user)
     }
 }
