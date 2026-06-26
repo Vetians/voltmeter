@@ -6,6 +6,7 @@ import org.ukrida.voltmeter.data.api.ApiService
 import org.ukrida.voltmeter.data.model.Customer
 import org.ukrida.voltmeter.data.model.MeterRecord
 import org.ukrida.voltmeter.data.model.StatsResponse
+import org.ukrida.voltmeter.data.model.SubmitRecordRequest
 import org.ukrida.voltmeter.data.model.SubmitRecordResponse
 import org.ukrida.voltmeter.data.model.UploadResponse
 import org.ukrida.voltmeter.data.model.User
@@ -38,7 +39,7 @@ class VoltMeterRepository(private val api: ApiService) {
         return api.getMeterRecords("Bearer $token", customerId)
     }
 
-    suspend fun submitMeterRecord(token: String, record: Map<String, Any>): SubmitRecordResponse {
+    suspend fun submitMeterRecord(token: String, record: SubmitRecordRequest): SubmitRecordResponse {
         return api.submitMeterRecord("Bearer $token", record)
     }
 

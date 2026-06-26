@@ -16,3 +16,18 @@ data class MeterRecord(
     val longitude: Double = 0.0,
     val notes: String = ""
 )
+
+data class SubmitRecordRequest(
+    val customer_id: String = "",
+    val meter_number: String = "",
+    val previous_reading: Double = 0.0,
+    val current_reading: Double = 0.0,
+    val record_date: String = "",
+    val record_time: String = "",
+    val visit_status: String = "TERBACA_NORMAL",
+    val photo_path: String = "",
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val notes: String = "",
+    val recorded_by: String = ""
+)
