@@ -46,6 +46,7 @@ fun HomeScreen(viewModel: VoltMeterViewModel) {
     val lastSync = viewModel.lastSync.value
 
     LaunchedEffect(Unit) {
+        viewModel.syncWorkOrders()
         viewModel.loadTodayRecords()
     }
 
