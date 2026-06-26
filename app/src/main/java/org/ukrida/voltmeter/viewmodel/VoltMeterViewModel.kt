@@ -12,6 +12,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.ukrida.voltmeter.data.model.Customer
 import org.ukrida.voltmeter.data.model.MeterRecord
 import org.ukrida.voltmeter.data.model.StatsResponse
+import org.ukrida.voltmeter.data.model.SubmitRecordRequest
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.repository.VoltMeterRepository
 import java.io.File
@@ -283,18 +284,19 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
-                val record = mapOf(
-                    "customer_id" to customer.customer_id,
-                    "meter_number" to (meter?.meter_number ?: ""),
-                    "previous_reading" to (meter?.last_reading ?: 0.0),
-                    "current_reading" to reading,
-                    "record_date" to dateFormat.format(Date()),
-                    "record_time" to timeFormat.format(Date()),
-                    "visit_status" to visitStatus.value,
-                    "photo_path" to uploadResponse.photo_path,
-                    "latitude" to latitude, // Use parameter passed from FusedLocation
-                    "longitude" to longitude,
-                    "notes" to notes.value
+                val record = SubmitRecordRequest(
+                    customer_id = customer.customer_id,
+                    meter_number = meter?.meter_number ?: "",
+                    previous_reading = meter?.last_reading ?: 0.0,
+                    current_reading = reading,
+                    record_date = dateFormat.format(Date()),
+                    record_time = timeFormat.format(Date()),
+                    visit_status = visitStatus.value,
+                    photo_path = uploadResponse.photo_path,
+                    latitude = latitude,
+                    longitude = longitude,
+                    notes = notes.value,
+                    recorded_by = currentUser.value?.user_id ?: ""
                 )
 
                 val submitResp = repo.submitMeterRecord(token, record)

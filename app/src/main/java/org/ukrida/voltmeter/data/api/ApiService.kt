@@ -5,6 +5,7 @@ import okhttp3.RequestBody
 import org.ukrida.voltmeter.data.model.Customer
 import org.ukrida.voltmeter.data.model.MeterRecord
 import org.ukrida.voltmeter.data.model.StatsResponse
+import org.ukrida.voltmeter.data.model.SubmitRecordRequest
 import org.ukrida.voltmeter.data.model.SubmitRecordResponse
 import org.ukrida.voltmeter.data.model.UploadResponse
 import org.ukrida.voltmeter.data.model.User
@@ -62,7 +63,7 @@ interface ApiService {
     @POST("meter_records.php")
     suspend fun submitMeterRecord(
         @Header("Authorization") token: String,
-        @Body record: Map<String, Any>
+        @Body record: SubmitRecordRequest
     ): SubmitRecordResponse
 
     @GET("meter_records_today.php")

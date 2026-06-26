@@ -155,7 +155,7 @@ fun RecordingScreen(
 
     LaunchedEffect(errorMsg) {
         errorMsg?.let {
-            viewModel.clearMessages()
+            // Don't clear here - let MainScreen snackbar show it
         }
     }
 

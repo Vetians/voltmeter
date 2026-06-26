@@ -50,10 +50,18 @@ fun MainScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val isLoading = viewModel.isLoading.value
     val successMessage = viewModel.successMessage.value
+    val errorMessage = viewModel.errorMessage.value
     val selectedCustomer = viewModel.selectedCustomer.value
 
     LaunchedEffect(successMessage) {
         successMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessages()
+        }
+    }
+
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearMessages()
         }
