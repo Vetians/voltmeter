@@ -65,6 +65,18 @@ class VoltMeterRepository(private val api: ApiService) {
         return api.uploadFoto("Bearer $token", photo, customerId)
     }
 
+    // ============= PENDING / VERIFIED =============
+    suspend fun getRecordsByVerification(token: String, verified: Int, recordedBy: String? = null): List<MeterRecord> {
+        return api.getRecordsByVerification("Bearer $token", verified, recordedBy)
+    }
+
+    suspend fun verifyRecord(token: String, recordId: String, verifiedBy: String): SubmitRecordResponse {
+        return api.verifyRecord("Bearer $token", mapOf(
+            "record_id" to recordId,
+            "verified_by" to verifiedBy
+        ))
+    }
+
     // ============= ADMIN =============
     suspend fun getStatistics(token: String): StatsResponse {
         return api.getStatistics("Bearer $token")

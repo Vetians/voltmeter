@@ -80,6 +80,21 @@ interface ApiService {
         @Part("customer_id") customerId: RequestBody
     ): UploadResponse
 
+    // ============= PENDING / VERIFIED RECORDS =============
+    @GET("pending_records.php")
+    suspend fun getRecordsByVerification(
+        @Header("Authorization") token: String,
+        @Query("verified") verified: Int = 0,
+        @Query("recorded_by") recordedBy: String? = null
+    ): List<MeterRecord>
+
+    // ============= VERIFY RECORD =============
+    @POST("verify_record.php")
+    suspend fun verifyRecord(
+        @Header("Authorization") token: String,
+        @Body request: Map<String, String>
+    ): SubmitRecordResponse
+
     // ============= ADMIN ENDPOINTS =============
     @GET("kunjungan.php?statistik=1")
     suspend fun getStatistics(

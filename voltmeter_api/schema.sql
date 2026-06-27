@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS meter_records (
     longitude DOUBLE DEFAULT 0,
     notes TEXT,
     recorded_by VARCHAR(50) DEFAULT '',
+    is_verified TINYINT(1) DEFAULT 0,
+    verified_by VARCHAR(50) DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
 );

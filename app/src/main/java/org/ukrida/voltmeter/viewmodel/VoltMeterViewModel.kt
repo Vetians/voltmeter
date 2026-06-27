@@ -31,6 +31,10 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     var adminStats = mutableStateOf(StatsResponse())
     var adminUsersList = mutableStateOf<List<User>>(emptyList())
 
+    // ============= PENDING / VERIFIED STATE =============
+    var pendingRecords = mutableStateOf<List<MeterRecord>>(emptyList())
+    var verifiedRecords = mutableStateOf<List<MeterRecord>>(emptyList())
+
     // ============= CUSTOMER STATE =============
     var customers = mutableStateOf<List<Customer>>(emptyList())
     var selectedCustomer = mutableStateOf<Customer?>(null)
@@ -105,6 +109,48 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 adminUsersList.value = repo.getUsers(token)
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load admin users gagal", e)
+            }
+        }
+    }
+
+    // ============= PENDING / VERIFIED =============
+    fun loadPendingRecords(recordedBy: String? = null) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                pendingRecords.value = repo.getRecordsByVerification(token, 0, recordedBy)
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Load pending records gagal", e)
+            }
+        }
+    }
+
+    fun loadVerifiedRecords(recordedBy: String? = null) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                verifiedRecords.value = repo.getRecordsByVerification(token, 1, recordedBy)
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Load verified records gagal", e)
+            }
+        }
+    }
+
+    fun verifyRecord(recordId: String) {
+        val token = currentUser.value?.token ?: return
+        val userId = currentUser.value?.user_id ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                repo.verifyRecord(token, recordId, userId)
+                successMessage.value = "Pekerjaan berhasil diverifikasi"
+                loadPendingRecords()
+                loadVerifiedRecords()
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Verify record gagal", e)
+                errorMessage.value = "Gagal verifikasi: ${e.message}"
+            } finally {
+                isLoading.value = false
             }
         }
     }
