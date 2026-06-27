@@ -160,9 +160,43 @@ fun HistoryCard(record: MeterRecord) {
             if (record.notes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Catatan: ${record.notes}",
+                    text = "Catatan Kunjungan: ${record.notes}",
                     color = Color.Gray,
                     fontSize = 11.sp
+                )
+            }
+            
+            // Tampilkan Status Verifikasi dari Admin
+            Spacer(modifier = Modifier.height(8.dp))
+            val badgeColor = when(record.verification_status) {
+                "VERIFIED" -> Color(0xFF2E7D32)
+                "REJECTED" -> Color(0xFFC62828)
+                else -> Color(0xFFF57C00)
+            }
+            
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Verifikasi Admin: ", fontSize = 12.sp, color = Color.Gray)
+                androidx.compose.material3.Surface(
+                    color = badgeColor.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = record.verification_status,
+                        color = badgeColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            
+            if (record.verification_status == "REJECTED" && record.verification_note != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Alasan Ditolak: ${record.verification_note}",
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }

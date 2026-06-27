@@ -14,7 +14,9 @@ data class MeterRecord(
     val photo_path: String = "",
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val notes: String = ""
+    val notes: String = "",
+    val verification_status: String = "PENDING",
+    val verification_note: String? = null
 )
 
 data class SubmitRecordRequest(
@@ -30,4 +32,10 @@ data class SubmitRecordRequest(
     val longitude: Double = 0.0,
     val notes: String = "",
     val recorded_by: String = ""
+)
+
+data class VerifyRequest(
+    val record_id: String,
+    val status: String,
+    val note: String? = null
 )

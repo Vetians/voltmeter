@@ -11,6 +11,7 @@ import org.ukrida.voltmeter.data.model.SubmitRecordResponse
 import org.ukrida.voltmeter.data.model.UploadResponse
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.model.WorkOrderResponse
+import org.ukrida.voltmeter.data.model.ApiResponse
 
 class VoltMeterRepository(private val api: ApiService) {
 
@@ -65,9 +66,9 @@ class VoltMeterRepository(private val api: ApiService) {
         return api.uploadFoto("Bearer $token", photo, customerId)
     }
 
-    // ============= ADMIN =============
-    suspend fun getStatistics(token: String): StatsResponse {
-        return api.getStatistics("Bearer $token")
+    // ============= ADMIN ENDPOINTS =============
+    suspend fun getStatistics(token: String, bulan: Int? = null, tahun: Int? = null): StatsResponse {
+        return api.getStatistics("Bearer $token", bulan, tahun)
     }
 
     suspend fun getUsers(token: String): List<User> {
@@ -76,5 +77,17 @@ class VoltMeterRepository(private val api: ApiService) {
 
     suspend fun insertUser(token: String, user: User) {
         api.insertUser("Bearer $token", user)
+    }
+
+    suspend fun updateUser(token: String, user: User): ApiResponse {
+        return api.updateUser("Bearer $token", user)
+    }
+
+    suspend fun verifyRecord(token: String, request: org.ukrida.voltmeter.data.model.VerifyRequest): ApiResponse {
+        return api.verifyRecord("Bearer $token", request)
+    }
+
+    suspend fun addCustomer(token: String, customer: Customer): ApiResponse {
+        return api.addCustomer("Bearer $token", customer)
     }
 }

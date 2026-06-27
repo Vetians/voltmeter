@@ -8,7 +8,8 @@ object RetrofitInstance {
     // private const val BASE_URL = "http://10.246.180.254/voltmeter_api/routes/"
     // private const val BASE_URL = "http://10.0.2.2/voltmeter_api/routes/"
 
-    private const val BASE_URL = "http://10.0.2.2/voltmeter_api/routes/"
+    private const val BASE_URL = "http://10.246.180.254/voltmeter_api/routes/"
+    const val IMAGE_BASE_URL = "http://10.246.180.254/voltmeter_api/uploads/photos/"
 
     val api: ApiService by lazy {
         Retrofit.Builder()

@@ -10,6 +10,7 @@ import org.ukrida.voltmeter.data.model.SubmitRecordResponse
 import org.ukrida.voltmeter.data.model.UploadResponse
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.model.WorkOrderResponse
+import org.ukrida.voltmeter.data.model.ApiResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -83,7 +84,9 @@ interface ApiService {
     // ============= ADMIN ENDPOINTS =============
     @GET("kunjungan.php?statistik=1")
     suspend fun getStatistics(
-        @Header("Authorization") token: String
+        @Header("Authorization") token: String,
+        @Query("bulan") bulan: Int? = null,
+        @Query("tahun") tahun: Int? = null
     ): StatsResponse
 
     @GET("users.php")
@@ -96,4 +99,22 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Body user: User
     ): retrofit2.Response<Unit>
+
+    @retrofit2.http.PUT("users.php")
+    suspend fun updateUser(
+        @Header("Authorization") token: String,
+        @Body user: User
+    ): ApiResponse
+
+    @POST("customers.php")
+    suspend fun addCustomer(
+        @Header("Authorization") token: String,
+        @Body customer: Customer
+    ): ApiResponse
+
+    @POST("verifikasi.php")
+    suspend fun verifyRecord(
+        @Header("Authorization") token: String,
+        @Body request: org.ukrida.voltmeter.data.model.VerifyRequest
+    ): ApiResponse
 }

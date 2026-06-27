@@ -156,7 +156,8 @@ fun StatCard(
     icon: ImageVector,
     value: String,
     label: String,
-    color: Color
+    color: Color,
+    totalValue: Int = 0 // added for progress bar
 ) {
     Card(
         modifier = modifier,
@@ -187,6 +188,18 @@ fun StatCard(
                 fontSize = 12.sp,
                 color = Color.Gray
             )
+            
+            if (totalValue > 0) {
+                Spacer(modifier = Modifier.height(12.dp))
+                val floatValue = value.toFloatOrNull() ?: 0f
+                val progress = if (totalValue > 0) floatValue / totalValue else 0f
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier.fillMaxWidth().height(4.dp),
+                    color = color,
+                    trackColor = color.copy(alpha = 0.2f)
+                )
+            }
         }
     }
 }

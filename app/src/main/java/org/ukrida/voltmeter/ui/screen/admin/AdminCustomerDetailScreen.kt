@@ -20,6 +20,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.layout.ContentScale
 import org.ukrida.voltmeter.data.model.Customer
 import org.ukrida.voltmeter.data.model.MeterRecord
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
@@ -90,7 +95,7 @@ fun AdminCustomerDetailScreen(
 
                 // Tab Content
                 when (selectedTabIndex) {
-                    0 -> HistoryTab(viewModel.customerHistory.value)
+                    0 -> HistoryTab(viewModel, customer.customer_id, viewModel.customerHistory.value)
                     1 -> MetersTab(viewModel, customer)
                 }
             }
@@ -121,7 +126,67 @@ fun CustomerHeaderInfo(customer: Customer) {
 }
 
 @Composable
-fun HistoryTab(history: List<MeterRecord>) {
+fun HistoryTab(viewModel: VoltMeterViewModel, customerId: String, history: List<MeterRecord>) {
+    var showRejectDialog by remember { mutableStateOf(false) }
+    var rejectNote by remember { mutableStateOf("") }
+    var selectedRecordId by remember { mutableStateOf("") }
+    var showFullImage by remember { mutableStateOf<String?>(null) }
+
+    if (showFullImage != null) {
+        Dialog(onDismissRequest = { showFullImage = null }) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { showFullImage = null },
+                contentAlignment = Alignment.Center
+            ) {
+                coil.compose.AsyncImage(
+                    model = showFullImage,
+                    contentDescription = "Full Foto Meteran",
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
+    }
+
+    if (showRejectDialog) {
+        AlertDialog(
+            onDismissRequest = { showRejectDialog = false },
+            title = { Text("Tolak Laporan") },
+            text = {
+                OutlinedTextField(
+                    value = rejectNote,
+                    onValueChange = { rejectNote = it },
+                    label = { Text("Alasan Penolakan") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (rejectNote.isNotBlank()) {
+                            viewModel.verifyRecord(selectedRecordId, "REJECTED", rejectNote, customerId)
+                            showRejectDialog = false
+                            rejectNote = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Tolak")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRejectDialog = false }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
+
     if (history.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Belum ada riwayat pencatatan", color = Color.Gray)
@@ -133,22 +198,117 @@ fun HistoryTab(history: List<MeterRecord>) {
             modifier = Modifier.fillMaxSize()
         ) {
             items(history) { record ->
+                val badgeColor = when(record.verification_status) {
+                    "VERIFIED" -> Color(0xFF2E7D32)
+                    "REJECTED" -> Color(0xFFC62828)
+                    else -> Color(0xFFF57C00)
+                }
+                
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(2.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.History, contentDescription = null, tint = Color(0xFF1565C0))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(record.meter_number, fontWeight = FontWeight.Bold)
-                            Text("Tanggal: ${record.record_date} ${record.record_time}", fontSize = 14.sp)
-                            Text("Angka: ${record.current_reading}", fontSize = 14.sp, color = Color.DarkGray)
-                            Text("Status: ${record.visit_status}", fontSize = 12.sp, color = Color.Gray)
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.History, contentDescription = null, tint = Color(0xFF1565C0))
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(record.meter_number, fontWeight = FontWeight.Bold)
+                                Text("Tanggal: ${record.record_date} ${record.record_time}", fontSize = 14.sp)
+                                Text("Angka: ${record.current_reading}", fontSize = 14.sp, color = Color.DarkGray)
+                                Text("Status Kunjungan: ${record.visit_status}", fontSize = 12.sp, color = Color.Gray)
+                            }
+                            // Verification Badge
+                            Surface(
+                                color = badgeColor.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = record.verification_status,
+                                    color = badgeColor,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                        
+                        if (record.photo_path.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            val imageUrl = if (record.photo_path.startsWith("http")) record.photo_path else org.ukrida.voltmeter.data.api.RetrofitInstance.IMAGE_BASE_URL + record.photo_path
+                            coil.compose.AsyncImage(
+                                model = imageUrl,
+                                contentDescription = "Foto Meteran",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .background(Color.LightGray, RoundedCornerShape(8.dp))
+                                    .clickable { showFullImage = imageUrl },
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        
+                        // Detail GPS Location for Verification
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Surface(
+                            color = Color(0xFFFFF3E0), // Orange muda
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "Detail Lokasi (GPS)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFE65100)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Koordinat GPS: ${record.latitude}, ${record.longitude}", fontSize = 12.sp)
+                                // Noted to admin to compare with customer's registered address
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Catatan: Bandingkan koordinat/foto ini dengan Alamat Pelanggan yang terdaftar di sistem untuk verifikasi keaslian.",
+                                    fontSize = 10.sp,
+                                    color = Color.DarkGray,
+                                    fontStyle = FontStyle.Italic
+                                )
+                            }
+                        }
+
+                        if (record.verification_note != null && record.verification_note.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Catatan Admin: ${record.verification_note}", fontSize = 12.sp, color = Color.Red, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        if (record.verification_status == "PENDING") {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                OutlinedButton(
+                                    onClick = { 
+                                        selectedRecordId = record.record_id
+                                        showRejectDialog = true
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
+                                ) {
+                                    Text("Tolak")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = { 
+                                        viewModel.verifyRecord(record.record_id, "VERIFIED", null, customerId)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                                ) {
+                                    Text("Verifikasi")
+                                }
+                            }
                         }
                     }
                 }
