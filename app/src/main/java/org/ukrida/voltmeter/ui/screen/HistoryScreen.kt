@@ -129,10 +129,32 @@ fun HistoryCard(record: MeterRecord) {
                 color = Color.Gray,
                 fontSize = 12.sp
             )
-            Text(
-                text = "${record.previous_reading} → ${record.current_reading} kWh",
-                fontSize = 14.sp
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${record.previous_reading} → ${record.current_reading} kWh",
+                    fontSize = 14.sp
+                )
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (record.is_verified == 1) Color(0xFF4CAF50).copy(alpha = 0.1f)
+                            else Color(0xFFFF9800).copy(alpha = 0.1f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = if (record.is_verified == 1) "Selesai" else "Pending",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (record.is_verified == 1) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                    )
+                }
+            }
             Text(
                 text = "Pemakaian: ${String.format("%.2f", record.usage_kwh)} kWh",
                 color = Color(0xFF4CAF50),

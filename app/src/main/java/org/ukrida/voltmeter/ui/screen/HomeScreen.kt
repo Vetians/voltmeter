@@ -114,7 +114,7 @@ fun HomeScreen(viewModel: VoltMeterViewModel) {
             StatCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.CheckCircle,
-                value = "${todayRecords.size}",
+                value = "${verifiedRecords.size}",
                 label = "Selesai",
                 color = Color(0xFF4CAF50)
             )

@@ -148,7 +148,26 @@ fun HistoryTab(history: List<MeterRecord>) {
                             Text(record.meter_number, fontWeight = FontWeight.Bold)
                             Text("Tanggal: ${record.record_date} ${record.record_time}", fontSize = 14.sp)
                             Text("Angka: ${record.current_reading}", fontSize = 14.sp, color = Color.DarkGray)
-                            Text("Status: ${record.visit_status}", fontSize = 12.sp, color = Color.Gray)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Status: ${record.visit_status}", fontSize = 12.sp, color = Color.Gray)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (record.is_verified == 1) Color(0xFF4CAF50).copy(alpha = 0.1f)
+                                            else Color(0xFFFF9800).copy(alpha = 0.1f),
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = if (record.is_verified == 1) "Selesai" else "Pending",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (record.is_verified == 1) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
