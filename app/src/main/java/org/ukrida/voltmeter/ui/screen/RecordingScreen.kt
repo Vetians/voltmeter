@@ -16,11 +16,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
@@ -82,6 +84,7 @@ fun RecordingScreen(
     val visitStatus = viewModel.visitStatus.value
     val photoUriString = viewModel.photoUriString.value
     val notes = viewModel.notes.value
+    val currentMeterIndex = viewModel.currentMeterIndex.value
 
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
     var currentFile by remember { mutableStateOf<File?>(null) }
@@ -100,6 +103,8 @@ fun RecordingScreen(
     var hasLocationPermission by remember { mutableStateOf(false) }
 
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    val hasMoreMeters = customer.meters.size > 1 && currentMeterIndex < customer.meters.size - 1
 
     // Check location permissions
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -149,13 +154,11 @@ fun RecordingScreen(
     LaunchedEffect(successMsg) {
         successMsg?.let {
             viewModel.clearMessages()
-            onRecordingSuccess()
-        }
-    }
-
-    LaunchedEffect(errorMsg) {
-        errorMsg?.let {
-            // Don't clear here - let MainScreen snackbar show it
+            if (hasMoreMeters) {
+                viewModel.advanceToNextMeter()
+            } else {
+                onRecordingSuccess()
+            }
         }
     }
 
@@ -211,8 +214,10 @@ fun RecordingScreen(
                 Text("ID: ${customer.customer_id}", color = Color.Gray, fontSize = 12.sp)
                 Text(customer.address, color = Color.Gray, fontSize = 13.sp)
                 Text("${customer.power_va} VA - ${customer.tariff}", color = Color.Gray, fontSize = 13.sp)
+                val prevReading = customer.meters.getOrNull(currentMeterIndex)?.last_reading ?: customer.last_meter_reading
+                val prevMeterNumber = customer.meters.getOrNull(currentMeterIndex)?.meter_number ?: ""
                 Text(
-                    "Stand Bulan Lalu: ${customer.last_meter_reading} kWh",
+                    "Stand Bulan Lalu${if (prevMeterNumber.isNotEmpty()) " ($prevMeterNumber)" else ""}: ${prevReading} kWh",
                     color = Color(0xFF1565C0),
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -235,7 +240,7 @@ fun RecordingScreen(
                     Text("Angka Stand Meter", fontWeight = FontWeight.Bold)
                     if (customer.meters.size > 1) {
                         Text(
-                            "Meter ${viewModel.currentMeterIndex.value + 1}/${customer.meters.size}",
+                            "Meter ${currentMeterIndex + 1}/${customer.meters.size} - ${customer.meters[currentMeterIndex].meter_number}",
                             color = Color(0xFF1565C0),
                             fontSize = 12.sp
                         )
@@ -254,7 +259,8 @@ fun RecordingScreen(
 
                 if (currentReading.isNotEmpty()) {
                     val reading = currentReading.toDoubleOrNull()
-                    if (reading != null && reading < customer.last_meter_reading) {
+                    val prevReading = customer.meters.getOrNull(currentMeterIndex)?.last_reading ?: customer.last_meter_reading
+                    if (reading != null && reading < prevReading) {
                         Row(
                             modifier = Modifier.padding(top = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -392,33 +398,66 @@ fun RecordingScreen(
         }
 
         // Buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedButton(
-                onClick = { onRecordingSuccess() },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
+        if (hasMoreMeters) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Batal")
-            }
+                OutlinedButton(
+                    onClick = { onRecordingSuccess() },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Selesai")
+                }
 
-            Button(
-                onClick = { viewModel.submitMeterRecord(latitude = currentLat, longitude = currentLng) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                enabled = photoUriString != null && !isLoading && hasLocationPermission
+                Button(
+                    onClick = { viewModel.submitMeterRecord(latitude = currentLat, longitude = currentLng) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = photoUriString != null && !isLoading && hasLocationPermission
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Simpan & Input Meter Lain")
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.height(20.dp),
-                        color = Color.White
-                    )
-                } else {
-                    Icon(Icons.Default.CheckCircle, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Simpan")
+                OutlinedButton(
+                    onClick = { onRecordingSuccess() },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Batal")
+                }
+
+                Button(
+                    onClick = { viewModel.submitMeterRecord(latitude = currentLat, longitude = currentLng) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = photoUriString != null && !isLoading && hasLocationPermission
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(Icons.Default.CheckCircle, null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Simpan")
+                    }
                 }
             }
         }

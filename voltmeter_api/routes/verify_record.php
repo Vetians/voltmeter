@@ -13,13 +13,14 @@ try {
     }
 
     $recordId = $input['record_id'];
-    $verifiedBy = $input['verified_by'] ?? '';
+    $status = $input['status'] ?? 'VERIFIED';
+    $note = $input['note'] ?? null;
 
-    $stmt = $db->prepare("UPDATE meter_records SET is_verified = 1, verified_by = ? WHERE record_id = ?");
-    $stmt->execute([$verifiedBy, $recordId]);
+    $stmt = $db->prepare("UPDATE meter_records SET verification_status = ?, verification_note = ? WHERE record_id = ?");
+    $stmt->execute([$status, $note, $recordId]);
 
     if ($stmt->rowCount() > 0) {
-        echo json_encode(["success" => true, "message" => "Pekerjaan berhasil diverifikasi"]);
+        echo json_encode(["success" => true, "message" => "Status verifikasi berhasil diperbarui"]);
     } else {
         http_response_code(404);
         echo json_encode(["success" => false, "message" => "Record tidak ditemukan"]);

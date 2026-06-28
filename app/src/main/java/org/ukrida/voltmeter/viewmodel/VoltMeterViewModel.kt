@@ -30,15 +30,18 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     // ============= ADMIN STATE =============
     var adminStats = mutableStateOf(StatsResponse())
     var adminUsersList = mutableStateOf<List<User>>(emptyList())
+    var selectedAdminMonth = mutableStateOf<Int?>(null)
+    var selectedAdminYear = mutableStateOf<Int?>(null)
 
-    // ============= PENDING / VERIFIED STATE =============
+    // ============= PENDING / VERIFIED / REJECTED STATE =============
     var pendingRecords = mutableStateOf<List<MeterRecord>>(emptyList())
     var verifiedRecords = mutableStateOf<List<MeterRecord>>(emptyList())
+    var rejectedRecords = mutableStateOf<List<MeterRecord>>(emptyList())
 
     // ============= CUSTOMER STATE =============
     var customers = mutableStateOf<List<Customer>>(emptyList())
     var selectedCustomer = mutableStateOf<Customer?>(null)
-    
+
     // For Admin Customer Detail
     var selectedAdminCustomer = mutableStateOf<Customer?>(null)
     var customerHistory = mutableStateOf<List<MeterRecord>>(emptyList())
@@ -51,7 +54,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     var currentReading = mutableStateOf("")
     var visitStatus = mutableStateOf("TERBACA_NORMAL")
     var photoUriString = mutableStateOf<String?>(null)
-    var photoFile = mutableStateOf<File?>(null) // Save the actual file reference
+    var photoFile = mutableStateOf<File?>(null)
     var notes = mutableStateOf("")
     var currentMeterIndex = mutableStateOf(0)
 
@@ -93,17 +96,15 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     // ============= ADMIN =============
     fun loadAdminData() {
         val token = currentUser.value?.token ?: return
-        
-        // Load Stats
+
         viewModelScope.launch {
             try {
-                adminStats.value = repo.getStatistics(token)
+                adminStats.value = repo.getStatistics(token, selectedAdminMonth.value, selectedAdminYear.value)
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load admin stats gagal", e)
             }
         }
 
-        // Load Users
         viewModelScope.launch {
             try {
                 adminUsersList.value = repo.getUsers(token)
@@ -113,7 +114,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         }
     }
 
-    // ============= PENDING / VERIFIED =============
+    // ============= PENDING / VERIFIED / REJECTED =============
     fun loadPendingRecords(recordedBy: String? = null) {
         val token = currentUser.value?.token ?: return
         viewModelScope.launch {
@@ -136,6 +137,17 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         }
     }
 
+    fun loadRejectedRecords(recordedBy: String? = null) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                rejectedRecords.value = repo.getRecordsByVerification(token, 2, recordedBy)
+            } catch (e: Exception) {
+                Log.e("VOLTMETER", "Load rejected records gagal", e)
+            }
+        }
+    }
+
     fun verifyRecord(recordId: String) {
         val token = currentUser.value?.token ?: return
         val userId = currentUser.value?.user_id ?: return
@@ -146,6 +158,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 successMessage.value = "Pekerjaan berhasil diverifikasi"
                 loadPendingRecords()
                 loadVerifiedRecords()
+                loadRejectedRecords()
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Verify record gagal", e)
                 errorMessage.value = "Gagal verifikasi: ${e.message}"
@@ -162,11 +175,74 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 isLoading.value = true
                 repo.insertUser(token, user)
                 successMessage.value = "Pengguna berhasil ditambahkan"
-                // Reload list after insert
                 loadAdminData()
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Insert user gagal", e)
                 errorMessage.value = "Gagal menambah pengguna: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun updateUser(user: User) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val response = repo.updateUser(token, user)
+                if (response.success) {
+                    successMessage.value = "Pengguna berhasil diperbarui"
+                    loadAdminData()
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal memperbarui pengguna: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun addCustomer(customer: Customer) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val response = repo.addCustomer(token, customer)
+                if (response.success) {
+                    successMessage.value = "Pelanggan baru berhasil ditambahkan"
+                    loadAllCustomers()
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal menambah pelanggan: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun verifyRecord(recordId: String, status: String, note: String? = null, customerId: String) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val request = org.ukrida.voltmeter.data.model.VerifyRequest(recordId, status, note)
+                val response = repo.verifyRecord(token, request)
+                if (response.success) {
+                    successMessage.value = "Status verifikasi berhasil diperbarui"
+                    loadCustomerHistory(customerId)
+                    loadPendingRecords()
+                    loadVerifiedRecords()
+                    loadRejectedRecords()
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal memverifikasi data: ${e.message}"
             } finally {
                 isLoading.value = false
             }
@@ -179,8 +255,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
             try {
                 isLoading.value = true
                 customers.value = repo.getCustomers(token)
-                
-                // If a customer is currently selected, refresh its data
+
                 selectedAdminCustomer.value?.let { selected ->
                     selectedAdminCustomer.value = customers.value.find { it.customer_id == selected.customer_id } ?: selected
                 }
@@ -211,7 +286,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 isLoading.value = true
                 repo.addMeter(token, customerId, meterNumber)
                 successMessage.value = "Meteran berhasil ditambahkan"
-                loadAllCustomers() // Reload to get updated meters
+                loadAllCustomers()
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Add meter gagal", e)
                 errorMessage.value = "Gagal menambah meteran: ${e.message}"
@@ -228,7 +303,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 isLoading.value = true
                 repo.deleteMeter(token, meterNumber)
                 successMessage.value = "Meteran berhasil dihapus"
-                loadAllCustomers() // Reload to get updated meters
+                loadAllCustomers()
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Delete meter gagal", e)
                 errorMessage.value = "Gagal menghapus meteran: ${e.message}"
@@ -264,6 +339,23 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         }
     }
 
+    // ============= MULTI-METER =============
+    fun hasMoreMeters(): Boolean {
+        val customer = selectedCustomer.value ?: return false
+        return currentMeterIndex.value < customer.meters.size - 1
+    }
+
+    fun advanceToNextMeter() {
+        val customer = selectedCustomer.value ?: return
+        if (currentMeterIndex.value < customer.meters.size - 1) {
+            currentMeterIndex.value = currentMeterIndex.value + 1
+            currentReading.value = ""
+            photoUriString.value = null
+            photoFile.value = null
+            notes.value = ""
+        }
+    }
+
     // ============= CUSTOMER =============
     fun selectCustomer(customer: Customer) {
         selectedCustomer.value = customer
@@ -296,11 +388,9 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     fun submitMeterRecord(latitude: Double = 0.0, longitude: Double = 0.0) {
         val token = currentUser.value?.token ?: return
         val customer = selectedCustomer.value ?: return
-        
-        // If "RUMAH_KOSONG", reading can be 0 or empty, handled by the API rules.
-        // We'll parse it safely to 0.0 if empty.
+
         val reading = currentReading.value.toDoubleOrNull() ?: 0.0
-        
+
         val meter = customer.meters.getOrNull(currentMeterIndex.value)
         val pFile = photoFile.value
 
@@ -312,21 +402,19 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 isLoading.value = true
-                
-                // 1. Upload Photo First
+
                 val requestFile = pFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val body = MultipartBody.Part.createFormData("photo", pFile.name, requestFile)
                 val customerIdBody = customer.customer_id.toRequestBody("text/plain".toMediaTypeOrNull())
-                
+
                 val uploadResponse = repo.uploadFoto(token, body, customerIdBody)
-                
+
                 if (!uploadResponse.success) {
                     errorMessage.value = "Gagal upload foto: ${uploadResponse.message}"
                     isLoading.value = false
                     return@launch
                 }
 
-                // 2. Submit Record
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
@@ -348,8 +436,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 val submitResp = repo.submitMeterRecord(token, record)
                 if (submitResp.success) {
                     successMessage.value = "Pencatatan berhasil disimpan"
-                    
-                    // Reset state
+
                     currentReading.value = ""
                     photoUriString.value = null
                     photoFile.value = null

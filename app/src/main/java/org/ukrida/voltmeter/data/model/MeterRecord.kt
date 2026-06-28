@@ -16,8 +16,8 @@ data class MeterRecord(
     val longitude: Double = 0.0,
     val notes: String = "",
     val recorded_by: String = "",
-    val is_verified: Int = 0,
-    val verified_by: String = "",
+    val verification_status: String = "PENDING",
+    val verification_note: String? = null,
     val customer_name: String = "",
     val customer_address: String = ""
 )
@@ -35,4 +35,10 @@ data class SubmitRecordRequest(
     val longitude: Double = 0.0,
     val notes: String = "",
     val recorded_by: String = ""
+)
+
+data class VerifyRequest(
+    val record_id: String,
+    val status: String,
+    val note: String? = null
 )

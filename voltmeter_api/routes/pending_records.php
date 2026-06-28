@@ -3,16 +3,28 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
 
 $db = getDB();
-$verified = isset($_GET['verified']) ? (int)$_GET['verified'] : 0;
 $recordedBy = $_GET['recorded_by'] ?? null;
+
+// Support both old 'verified' param (0=PENDING,1=VERIFIED,2=REJECTED) and new 'status' param
+$statusParam = $_GET['status'] ?? null;
+$verified = isset($_GET['verified']) ? (int)$_GET['verified'] : null;
+
+if ($statusParam) {
+    $statusValue = $statusParam;
+} elseif ($verified !== null) {
+    $map = [0 => 'PENDING', 1 => 'VERIFIED', 2 => 'REJECTED'];
+    $statusValue = $map[$verified] ?? 'PENDING';
+} else {
+    $statusValue = 'PENDING';
+}
 
 $sql = "
     SELECT mr.*, c.name AS customer_name, c.address AS customer_address
     FROM meter_records mr
     JOIN customers c ON c.customer_id = mr.customer_id
-    WHERE mr.is_verified = ?
+    WHERE mr.verification_status = ?
 ";
-$params = [$verified];
+$params = [$statusValue];
 
 if ($recordedBy) {
     $sql .= " AND mr.recorded_by = ?";

@@ -11,6 +11,8 @@ import org.ukrida.voltmeter.data.model.SubmitRecordResponse
 import org.ukrida.voltmeter.data.model.UploadResponse
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.model.WorkOrderResponse
+import org.ukrida.voltmeter.data.model.ApiResponse
+import org.ukrida.voltmeter.data.model.VerifyRequest
 
 class VoltMeterRepository(private val api: ApiService) {
 
@@ -65,21 +67,22 @@ class VoltMeterRepository(private val api: ApiService) {
         return api.uploadFoto("Bearer $token", photo, customerId)
     }
 
-    // ============= PENDING / VERIFIED =============
+    // ============= PENDING / VERIFIED / REJECTED =============
     suspend fun getRecordsByVerification(token: String, verified: Int, recordedBy: String? = null): List<MeterRecord> {
         return api.getRecordsByVerification("Bearer $token", verified, recordedBy)
     }
 
+    // ============= VERIFY RECORD (old signature) =============
     suspend fun verifyRecord(token: String, recordId: String, verifiedBy: String): SubmitRecordResponse {
         return api.verifyRecord("Bearer $token", mapOf(
             "record_id" to recordId,
-            "verified_by" to verifiedBy
+            "status" to "VERIFIED"
         ))
     }
 
     // ============= ADMIN =============
-    suspend fun getStatistics(token: String): StatsResponse {
-        return api.getStatistics("Bearer $token")
+    suspend fun getStatistics(token: String, bulan: Int? = null, tahun: Int? = null): StatsResponse {
+        return api.getStatistics("Bearer $token", bulan, tahun)
     }
 
     suspend fun getUsers(token: String): List<User> {
@@ -88,5 +91,17 @@ class VoltMeterRepository(private val api: ApiService) {
 
     suspend fun insertUser(token: String, user: User) {
         api.insertUser("Bearer $token", user)
+    }
+
+    suspend fun updateUser(token: String, user: User): ApiResponse {
+        return api.updateUser("Bearer $token", user)
+    }
+
+    suspend fun verifyRecord(token: String, request: VerifyRequest): ApiResponse {
+        return api.verifyRecord("Bearer $token", request)
+    }
+
+    suspend fun addCustomer(token: String, customer: Customer): ApiResponse {
+        return api.addCustomer("Bearer $token", customer)
     }
 }
