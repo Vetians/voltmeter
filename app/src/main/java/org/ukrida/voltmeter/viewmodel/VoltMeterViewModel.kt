@@ -30,6 +30,8 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     // ============= ADMIN STATE =============
     var adminStats = mutableStateOf(StatsResponse())
     var adminUsersList = mutableStateOf<List<User>>(emptyList())
+    var selectedAdminMonth = mutableStateOf<Int?>(null) // null means All Time
+    var selectedAdminYear = mutableStateOf<Int?>(null)
 
     // ============= CUSTOMER STATE =============
     var customers = mutableStateOf<List<Customer>>(emptyList())
@@ -93,7 +95,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         // Load Stats
         viewModelScope.launch {
             try {
-                adminStats.value = repo.getStatistics(token)
+                adminStats.value = repo.getStatistics(token, selectedAdminMonth.value, selectedAdminYear.value)
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load admin stats gagal", e)
             }
@@ -121,6 +123,68 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Insert user gagal", e)
                 errorMessage.value = "Gagal menambah pengguna: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun updateUser(user: User) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val response = repo.updateUser(token, user)
+                if (response.success) {
+                    successMessage.value = "Pengguna berhasil diperbarui"
+                    loadAdminData()
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal memperbarui pengguna: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun addCustomer(customer: Customer) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val response = repo.addCustomer(token, customer)
+                if (response.success) {
+                    successMessage.value = "Pelanggan baru berhasil ditambahkan"
+                    loadAllCustomers()
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal menambah pelanggan: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun verifyRecord(recordId: String, status: String, note: String? = null, customerId: String) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val request = org.ukrida.voltmeter.data.model.VerifyRequest(recordId, status, note)
+                val response = repo.verifyRecord(token, request)
+                if (response.success) {
+                    successMessage.value = "Status verifikasi berhasil diperbarui"
+                    // Reload customer history
+                    loadCustomerHistory(customerId)
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal memverifikasi data: ${e.message}"
             } finally {
                 isLoading.value = false
             }
