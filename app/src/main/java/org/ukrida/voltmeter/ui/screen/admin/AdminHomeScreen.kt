@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -69,7 +70,6 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
             }
         }
 
-        // Filters
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
@@ -82,8 +82,7 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Default.FilterList, contentDescription = "Filter", tint = Color.Gray)
-                
-                // Month Dropdown
+
                 ExposedDropdownMenuBox(
                     expanded = expandedMonth,
                     onExpandedChange = { expandedMonth = !expandedMonth },
@@ -113,7 +112,6 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                     }
                 }
 
-                // Year Dropdown
                 ExposedDropdownMenuBox(
                     expanded = expandedYear,
                     onExpandedChange = { expandedYear = !expandedYear },
@@ -159,7 +157,6 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                 value = "${stats.total_kunjungan}",
                 label = "Total Kunjungan",
                 color = Color(0xFF1565C0)
-                // No progress bar for total itself
             )
             StatCard(
                 modifier = Modifier.weight(1f),
@@ -192,18 +189,33 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                 totalValue = totalData
             )
         }
-        
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            StatCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Cancel,
+                value = "${stats.tidak_diterima}",
+                label = "Tidak Diterima",
+                color = Color(0xFFC62828),
+                totalValue = totalData
+            )
+            // Placeholder card to keep layout balanced (or we can just use 1 card spanning full width)
+            Spacer(modifier = Modifier.weight(1f))
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
-        
-        // Peringatan Anomali
+
         Text("Peringatan Terbaru", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                if (stats.rumah_kosong > 0 || stats.halangan > 0) {
-                    Text("Terdapat ${stats.rumah_kosong + stats.halangan} kunjungan yang memerlukan perhatian (Rumah Kosong atau Halangan). Silakan tinjau daftar pelanggan untuk detailnya.", color = Color(0xFFE65100), fontSize = 14.sp)
+                if (stats.rumah_kosong > 0 || stats.halangan > 0 || stats.tidak_diterima > 0) {
+                    Text("Terdapat ${stats.rumah_kosong + stats.halangan} kunjungan bermasalah dan ${stats.tidak_diterima} laporan ditolak. Silakan tinjau daftar pelanggan untuk detailnya.", color = Color(0xFFE65100), fontSize = 14.sp)
                 } else {
                     Text("Tidak ada peringatan khusus saat ini. Semua laporan terbaca normal.", color = Color(0xFF2E7D32), fontSize = 14.sp)
                 }

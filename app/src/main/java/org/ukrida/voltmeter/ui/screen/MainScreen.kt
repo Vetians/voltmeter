@@ -143,7 +143,12 @@ fun MainScreen(
         ) {
             // ================== PETUGAS ROUTES ==================
             composable("home") {
-                HomeScreen(viewModel = viewModel)
+                HomeScreen(
+                    viewModel = viewModel,
+                    onCustomerClick = { customer ->
+                        innerNavController.navigate("recording")
+                    }
+                )
             }
 
             composable("customer") {

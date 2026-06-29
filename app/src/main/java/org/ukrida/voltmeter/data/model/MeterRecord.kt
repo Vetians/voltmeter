@@ -15,8 +15,11 @@ data class MeterRecord(
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val notes: String = "",
+    val recorded_by: String = "",
     val verification_status: String = "PENDING",
-    val verification_note: String? = null
+    val verification_note: String? = null,
+    val customer_name: String = "",
+    val customer_address: String = ""
 )
 
 data class SubmitRecordRequest(
