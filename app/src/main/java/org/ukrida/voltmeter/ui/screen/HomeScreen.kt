@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.ukrida.voltmeter.data.model.Customer
+import org.ukrida.voltmeter.data.model.Meter
 import org.ukrida.voltmeter.data.model.MeterRecord
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
 import java.util.Calendar
@@ -212,7 +213,16 @@ fun HomeScreen(
                 )
             } else {
                 pendingRecords.forEach { record ->
-                    PendingRecordCard(record = record)
+                    PendingRecordCard(
+                        record = record,
+                        onClick = {
+                            val customer = customers.find { it.customer_id == record.customer_id }
+                            if (customer != null) {
+                                viewModel.selectCustomer(customer)
+                                onCustomerClick(customer)
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -256,10 +266,14 @@ fun HomeScreen(
                         record = record,
                         onClick = {
                             val customer = customers.find { it.customer_id == record.customer_id }
-                            if (customer != null) {
-                                viewModel.selectCustomer(customer)
-                                onCustomerClick(customer)
-                            }
+                                ?: Customer(
+                                    customer_id = record.customer_id,
+                                    name = record.customer_name,
+                                    address = record.customer_address,
+                                    meters = listOf(Meter(record.meter_number, record.previous_reading))
+                                )
+                            viewModel.selectCustomer(customer)
+                            onCustomerClick(customer)
                         }
                     )
                 }
@@ -400,7 +414,10 @@ private fun CustomerWorkCard(
 }
 
 @Composable
-private fun PendingRecordCard(record: MeterRecord) {
+private fun PendingRecordCard(
+    record: MeterRecord,
+    onClick: () -> Unit = {}
+) {
     val name = if (record.customer_name.isNotEmpty()) record.customer_name else record.customer_id
     val address = if (record.customer_address.isNotEmpty()) record.customer_address else "-"
     val statusLabel = when (record.visit_status) {
@@ -413,7 +430,8 @@ private fun PendingRecordCard(record: MeterRecord) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFFFFF8E1)

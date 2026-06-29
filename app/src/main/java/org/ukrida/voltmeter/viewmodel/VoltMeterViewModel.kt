@@ -57,6 +57,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     var photoFile = mutableStateOf<File?>(null)
     var notes = mutableStateOf("")
     var currentMeterIndex = mutableStateOf(0)
+    var savedMeters = mutableStateOf<Set<Int>>(emptySet())
 
     // ============= MESSAGE STATE =============
     var successMessage = mutableStateOf<String?>(null)
@@ -349,21 +350,35 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         val customer = selectedCustomer.value ?: return
         if (currentMeterIndex.value < customer.meters.size - 1) {
             currentMeterIndex.value = currentMeterIndex.value + 1
-            currentReading.value = ""
-            photoUriString.value = null
-            photoFile.value = null
-            notes.value = ""
+            clearCurrentMeterInput()
         }
+    }
+
+    fun selectMeter(index: Int) {
+        if (index != currentMeterIndex.value) {
+            currentMeterIndex.value = index
+            clearCurrentMeterInput()
+        }
+    }
+
+    fun markMeterSaved(index: Int) {
+        savedMeters.value = savedMeters.value + index
+        clearCurrentMeterInput()
+    }
+
+    private fun clearCurrentMeterInput() {
+        currentReading.value = ""
+        photoUriString.value = null
+        photoFile.value = null
+        notes.value = ""
     }
 
     // ============= CUSTOMER =============
     fun selectCustomer(customer: Customer) {
         selectedCustomer.value = customer
         currentMeterIndex.value = 0
-        currentReading.value = ""
-        photoUriString.value = null
-        photoFile.value = null
-        notes.value = ""
+        savedMeters.value = emptySet()
+        clearCurrentMeterInput()
         visitStatus.value = "TERBACA_NORMAL"
     }
 
@@ -436,11 +451,6 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 val submitResp = repo.submitMeterRecord(token, record)
                 if (submitResp.success) {
                     successMessage.value = "Pencatatan berhasil disimpan"
-
-                    currentReading.value = ""
-                    photoUriString.value = null
-                    photoFile.value = null
-                    notes.value = ""
                 } else {
                     errorMessage.value = "Gagal menyimpan data ke server."
                 }
