@@ -12,6 +12,7 @@ import org.ukrida.voltmeter.data.model.UploadResponse
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.model.WorkOrderResponse
 import org.ukrida.voltmeter.data.model.ApiResponse
+import org.ukrida.voltmeter.data.model.VerifyRequest
 
 class VoltMeterRepository(private val api: ApiService) {
 
@@ -66,7 +67,20 @@ class VoltMeterRepository(private val api: ApiService) {
         return api.uploadFoto("Bearer $token", photo, customerId)
     }
 
-    // ============= ADMIN ENDPOINTS =============
+    // ============= PENDING / VERIFIED / REJECTED =============
+    suspend fun getRecordsByVerification(token: String, verified: Int, recordedBy: String? = null): List<MeterRecord> {
+        return api.getRecordsByVerification("Bearer $token", verified, recordedBy)
+    }
+
+    // ============= VERIFY RECORD (old signature) =============
+    suspend fun verifyRecord(token: String, recordId: String, verifiedBy: String): SubmitRecordResponse {
+        return api.verifyRecord("Bearer $token", mapOf(
+            "record_id" to recordId,
+            "status" to "VERIFIED"
+        ))
+    }
+
+    // ============= ADMIN =============
     suspend fun getStatistics(token: String, bulan: Int? = null, tahun: Int? = null): StatsResponse {
         return api.getStatistics("Bearer $token", bulan, tahun)
     }
@@ -83,7 +97,7 @@ class VoltMeterRepository(private val api: ApiService) {
         return api.updateUser("Bearer $token", user)
     }
 
-    suspend fun verifyRecord(token: String, request: org.ukrida.voltmeter.data.model.VerifyRequest): ApiResponse {
+    suspend fun verifyRecord(token: String, request: VerifyRequest): ApiResponse {
         return api.verifyRecord("Bearer $token", request)
     }
 

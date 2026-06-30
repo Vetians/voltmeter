@@ -8,14 +8,15 @@ import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,7 +36,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -82,6 +81,7 @@ fun RecordingScreen(
     val visitStatus = viewModel.visitStatus.value
     val photoUriString = viewModel.photoUriString.value
     val notes = viewModel.notes.value
+    val currentMeterIndex = viewModel.currentMeterIndex.value
 
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
     var currentFile by remember { mutableStateOf<File?>(null) }
@@ -100,6 +100,8 @@ fun RecordingScreen(
     var hasLocationPermission by remember { mutableStateOf(false) }
 
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    val hasMultipleMeters = customer.meters.size > 1
 
     // Check location permissions
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -149,13 +151,7 @@ fun RecordingScreen(
     LaunchedEffect(successMsg) {
         successMsg?.let {
             viewModel.clearMessages()
-            onRecordingSuccess()
-        }
-    }
-
-    LaunchedEffect(errorMsg) {
-        errorMsg?.let {
-            // Don't clear here - let MainScreen snackbar show it
+            viewModel.markMeterSaved(currentMeterIndex)
         }
     }
 
@@ -211,8 +207,10 @@ fun RecordingScreen(
                 Text("ID: ${customer.customer_id}", color = Color.Gray, fontSize = 12.sp)
                 Text(customer.address, color = Color.Gray, fontSize = 13.sp)
                 Text("${customer.power_va} VA - ${customer.tariff}", color = Color.Gray, fontSize = 13.sp)
+                val prevReading = customer.meters.getOrNull(currentMeterIndex)?.last_reading ?: customer.last_meter_reading
+                val prevMeterNumber = customer.meters.getOrNull(currentMeterIndex)?.meter_number ?: ""
                 Text(
-                    "Stand Bulan Lalu: ${customer.last_meter_reading} kWh",
+                    "Stand Bulan Lalu${if (prevMeterNumber.isNotEmpty()) " ($prevMeterNumber)" else ""}: ${prevReading} kWh",
                     color = Color(0xFF1565C0),
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
@@ -227,19 +225,66 @@ fun RecordingScreen(
             elevation = CardDefaults.cardElevation(2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Angka Stand Meter", fontWeight = FontWeight.Bold)
-                    if (customer.meters.size > 1) {
-                        Text(
-                            "Meter ${viewModel.currentMeterIndex.value + 1}/${customer.meters.size}",
-                            color = Color(0xFF1565C0),
-                            fontSize = 12.sp
-                        )
+                Text("Angka Stand Meter", fontWeight = FontWeight.Bold)
+
+                if (hasMultipleMeters) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Pilih Meteran:", fontSize = 12.sp, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        customer.meters.forEachIndexed { index, meter ->
+                            val isSaved = index in viewModel.savedMeters.value
+                            val isSelected = currentMeterIndex == index
+                            if (isSelected) {
+                                Button(
+                                    onClick = { viewModel.selectMeter(index) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF1565C0)
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                                ) {
+                                    if (isSaved) {
+                                        Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp), tint = Color.White)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(
+                                        text = "${index + 1}. ${meter.meter_number}",
+                                        fontSize = 11.sp,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = { viewModel.selectMeter(index) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                                ) {
+                                    if (isSaved) {
+                                        Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp), tint = Color(0xFF4CAF50))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(
+                                        text = "${index + 1}. ${meter.meter_number}",
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Meter aktif: ${customer.meters[currentMeterIndex].meter_number}",
+                        fontSize = 11.sp,
+                        color = Color(0xFF1565C0),
+                        fontWeight = FontWeight.Medium
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -254,7 +299,8 @@ fun RecordingScreen(
 
                 if (currentReading.isNotEmpty()) {
                     val reading = currentReading.toDoubleOrNull()
-                    if (reading != null && reading < customer.last_meter_reading) {
+                    val prevReading = customer.meters.getOrNull(currentMeterIndex)?.last_reading ?: customer.last_meter_reading
+                    if (reading != null && reading < prevReading) {
                         Row(
                             modifier = Modifier.padding(top = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -401,7 +447,7 @@ fun RecordingScreen(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Batal")
+                Text(if (hasMultipleMeters) "Selesai" else "Batal")
             }
 
             Button(
@@ -412,7 +458,7 @@ fun RecordingScreen(
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.height(20.dp),
+                        modifier = Modifier.size(20.dp),
                         color = Color.White
                     )
                 } else {
