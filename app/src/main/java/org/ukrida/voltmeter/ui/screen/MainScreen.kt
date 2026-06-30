@@ -74,14 +74,16 @@ fun MainScreen(
                     Text(if (role == "admin") "VoltMeter Admin" else "VoltMeter")
                 },
                 actions = {
-                    IconButton(
-                        onClick = { viewModel.syncWorkOrders() }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Sync",
-                            tint = Color(0xFF1565C0)
-                        )
+                    if (role != "admin") {
+                        IconButton(
+                            onClick = { viewModel.syncWorkOrders() }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Sync",
+                                tint = Color(0xFF1565C0)
+                            )
+                        }
                     }
                     IconButton(
                         onClick = {
@@ -193,6 +195,10 @@ fun MainScreen(
             // ================== ADMIN ROUTES ==================
             composable("admin_dashboard") {
                 AdminHomeScreen(viewModel = viewModel)
+            }
+
+            composable("admin_verification") {
+                org.ukrida.voltmeter.ui.screen.admin.AdminVerificationScreen(viewModel = viewModel)
             }
 
             composable("admin_users") {
