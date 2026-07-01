@@ -14,7 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -109,7 +109,7 @@ fun ProfileScreen(
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Icon(Icons.Default.Logout, null)
+            Icon(Icons.AutoMirrored.Filled.Logout, null)
             Spacer(modifier = Modifier.height(4.dp))
             Text("Logout")
         }

@@ -20,14 +20,20 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,8 +54,30 @@ import org.ukrida.voltmeter.data.model.Customer
 import org.ukrida.voltmeter.data.model.Meter
 import org.ukrida.voltmeter.data.model.MeterRecord
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.delay
+import androidx.compose.material.icons.filled.FilterList
 
+private fun filterRecordByMonthYear(record: MeterRecord, month: Int, year: Int): Boolean {
+    if (record.record_date.isEmpty()) return false
+    return try {
+        val parts = record.record_date.split("-")
+        if (parts.size >= 3) {
+            val recordMonth = parts[1].toIntOrNull() ?: 0
+            val recordYear = parts[0].toIntOrNull() ?: 0
+            recordMonth == month && recordYear == year
+        } else {
+            false
+        }
+    } catch (e: Exception) {
+        false
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: VoltMeterViewModel,
@@ -66,6 +94,17 @@ fun HomeScreen(
 
     var expandedSection by remember { mutableStateOf<String?>(null) }
 
+    val dateFormat = remember { SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.forLanguageTag("id")) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = System.currentTimeMillis()
+            delay(1000L)
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.syncWorkOrders()
         viewModel.loadTodayRecords()
@@ -78,9 +117,6 @@ fun HomeScreen(
     val totalMeters = remember(customers) {
         customers.sumOf { it.meters.size }
     }
-    val completedMeters = remember(verifiedRecords) {
-        verifiedRecords.size
-    }
 
     val cal = remember { Calendar.getInstance() }
     val currentMonth = cal.get(Calendar.MONTH)
@@ -90,6 +126,34 @@ fun HomeScreen(
         "Juli", "Agustus", "September", "Oktober", "November", "Desember"
     )
     val monthName = monthNames[currentMonth]
+
+    val selectedMonth = viewModel.selectedSurveyorMonth.value ?: (currentMonth + 1)
+    val selectedYear = viewModel.selectedSurveyorYear.value ?: currentYear
+
+    val filterMonthNames = listOf("Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
+    var expandedMonthFilter by remember { mutableStateOf(false) }
+    var expandedYearFilter by remember { mutableStateOf(false) }
+    val filterYears = listOf(currentYear.toString(), (currentYear - 1).toString())
+
+    val filteredPendingRecords = remember(pendingRecords, selectedMonth, selectedYear) {
+        pendingRecords.filter { record ->
+            filterRecordByMonthYear(record, selectedMonth, selectedYear)
+        }
+    }
+    val filteredVerifiedRecords = remember(verifiedRecords, selectedMonth, selectedYear) {
+        verifiedRecords.filter { record ->
+            filterRecordByMonthYear(record, selectedMonth, selectedYear)
+        }
+    }
+    val filteredRejectedRecords = remember(rejectedRecords, selectedMonth, selectedYear) {
+        rejectedRecords.filter { record ->
+            filterRecordByMonthYear(record, selectedMonth, selectedYear)
+        }
+    }
+
+    val completedMeters = remember(filteredVerifiedRecords) {
+        filteredVerifiedRecords.size
+    }
 
     val deadlines = remember(customers) {
         customers.mapIndexed { index, customer ->
@@ -117,6 +181,31 @@ fun HomeScreen(
             fontSize = 14.sp
         )
 
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = dateFormat.format(Date(currentTime)),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1565C0)
+                )
+                Text(
+                    text = timeFormat.format(Date(currentTime)),
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0D47A1)
+                )
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -135,6 +224,79 @@ fun HomeScreen(
                 label = "Selesai",
                 color = Color(0xFF4CAF50)
             )
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.FilterList, contentDescription = "Filter", tint = Color.Gray)
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedMonthFilter,
+                    onExpandedChange = { expandedMonthFilter = !expandedMonthFilter },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = filterMonthNames[selectedMonth - 1],
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMonthFilter) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable, true),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedMonthFilter,
+                        onDismissRequest = { expandedMonthFilter = false }
+                    ) {
+                        filterMonthNames.forEachIndexed { index, name ->
+                            DropdownMenuItem(
+                                text = { Text(name) },
+                                onClick = {
+                                    viewModel.selectedSurveyorMonth.value = index + 1
+                                    expandedMonthFilter = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedYearFilter,
+                    onExpandedChange = { expandedYearFilter = !expandedYearFilter },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = selectedYear.toString(),
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedYearFilter) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable, true),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedYearFilter,
+                        onDismissRequest = { expandedYearFilter = false }
+                    ) {
+                        filterYears.forEach { year ->
+                            DropdownMenuItem(
+                                text = { Text(year) },
+                                onClick = {
+                                    viewModel.selectedSurveyorYear.value = year.toInt()
+                                    expandedYearFilter = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         Card(
@@ -172,7 +334,7 @@ fun HomeScreen(
 
         DropdownSection(
             title = "Daftar Kerja",
-            icon = Icons.Default.ListAlt,
+            icon = Icons.AutoMirrored.Filled.ListAlt,
             count = customers.size,
             expanded = expandedSection == "kerja",
             onToggle = { expandedSection = if (expandedSection == "kerja") null else "kerja" }
@@ -201,18 +363,18 @@ fun HomeScreen(
         DropdownSection(
             title = "Pending",
             icon = Icons.Default.Schedule,
-            count = pendingRecords.size,
+            count = filteredPendingRecords.size,
             expanded = expandedSection == "pending",
             onToggle = { expandedSection = if (expandedSection == "pending") null else "pending" }
         ) {
-            if (pendingRecords.isEmpty()) {
+            if (filteredPendingRecords.isEmpty()) {
                 Text(
                     text = "Tidak ada pekerjaan pending",
                     color = Color.Gray,
                     modifier = Modifier.padding(8.dp)
                 )
             } else {
-                pendingRecords.forEach { record ->
+                filteredPendingRecords.forEach { record ->
                     PendingRecordCard(
                         record = record,
                         onClick = {
@@ -230,18 +392,18 @@ fun HomeScreen(
         DropdownSection(
             title = "Selesai",
             icon = Icons.Default.CheckCircle,
-            count = verifiedRecords.size,
+            count = filteredVerifiedRecords.size,
             expanded = expandedSection == "selesai",
             onToggle = { expandedSection = if (expandedSection == "selesai") null else "selesai" }
         ) {
-            if (verifiedRecords.isEmpty()) {
+            if (filteredVerifiedRecords.isEmpty()) {
                 Text(
                     text = "Belum ada pekerjaan yang selesai",
                     color = Color.Gray,
                     modifier = Modifier.padding(8.dp)
                 )
             } else {
-                verifiedRecords.forEach { record ->
+                filteredVerifiedRecords.forEach { record ->
                     CompletedRecordCard(record = record)
                 }
             }
@@ -250,18 +412,18 @@ fun HomeScreen(
         DropdownSection(
             title = "Tidak Diterima",
             icon = Icons.Default.Cancel,
-            count = rejectedRecords.size,
+            count = filteredRejectedRecords.size,
             expanded = expandedSection == "ditolak",
             onToggle = { expandedSection = if (expandedSection == "ditolak") null else "ditolak" }
         ) {
-            if (rejectedRecords.isEmpty()) {
+            if (filteredRejectedRecords.isEmpty()) {
                 Text(
                     text = "Tidak ada data yang ditolak",
                     color = Color.Gray,
                     modifier = Modifier.padding(8.dp)
                 )
             } else {
-                rejectedRecords.forEach { record ->
+                filteredRejectedRecords.forEach { record ->
                     RejectedRecordCard(
                         record = record,
                         onClick = {
@@ -298,7 +460,7 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Tekan tombol sync di pojok kanan bawah untuk mengunduh data penugasan",
+                    text = "Tekan tombol sync di pojok kanan atas untuk mensinkronisasi data penugasan",
                     fontSize = 13.sp,
                     color = Color(0xFF795548)
                 )
@@ -645,7 +807,7 @@ fun StatCard(
                 val floatValue = value.toFloatOrNull() ?: 0f
                 val progress = if (totalValue > 0) floatValue / totalValue else 0f
                 androidx.compose.material3.LinearProgressIndicator(
-                    progress = progress,
+                    progress = { progress },
                     modifier = Modifier.fillMaxWidth().height(4.dp),
                     color = color,
                     trackColor = color.copy(alpha = 0.2f)

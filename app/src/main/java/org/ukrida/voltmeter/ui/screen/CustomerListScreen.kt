@@ -11,7 +11,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,11 +38,15 @@ fun CustomerListScreen(
 ) {
     val customers = viewModel.customers.value
     val user = viewModel.currentUser.value
+    val isAdmin = user?.role == "admin"
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingCustomer by remember { mutableStateOf<Customer?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deletingCustomer by remember { mutableStateOf<Customer?>(null) }
 
     Scaffold(
         floatingActionButton = {
-            if (user?.role == "admin") {
+            if (isAdmin) {
                 FloatingActionButton(
                     onClick = { showAddDialog = true },
                     containerColor = Color(0xFF1565C0),
@@ -91,7 +96,7 @@ fun CustomerListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(
                     top = 16.dp,
-                    bottom = 80.dp // Extra padding for FAB
+                    bottom = 80.dp
                 )
             ) {
                 items(customers) { customer ->
@@ -100,7 +105,10 @@ fun CustomerListScreen(
                         onClick = {
                             viewModel.selectCustomer(customer)
                             onCustomerClick(customer)
-                        }
+                        },
+                        onEdit = { editingCustomer = customer },
+                        onDelete = { deletingCustomer = customer; showDeleteDialog = true },
+                        isAdmin = isAdmin
                     )
                 }
             }
@@ -115,6 +123,145 @@ fun CustomerListScreen(
                 showAddDialog = false
             }
         )
+    }
+
+    editingCustomer?.let { customer ->
+        EditCustomerDialog(
+            customer = customer,
+            onDismiss = { editingCustomer = null },
+            onSave = { updatedCustomer ->
+                viewModel.updateCustomer(updatedCustomer)
+                editingCustomer = null
+            }
+        )
+    }
+
+    if (showDeleteDialog && deletingCustomer != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false; deletingCustomer = null },
+            title = { Text("Hapus Pelanggan?") },
+            text = { Text("Yakin ingin menghapus \"${deletingCustomer!!.name}\" (${deletingCustomer!!.customer_id})? Semua data meteran dan riwayat terkait akan ikut terhapus.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteCustomer(deletingCustomer!!.customer_id)
+                        showDeleteDialog = false
+                        deletingCustomer = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Hapus")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false; deletingCustomer = null }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditCustomerDialog(
+    customer: Customer,
+    onDismiss: () -> Unit,
+    onSave: (Customer) -> Unit
+) {
+    var name by remember { mutableStateOf(customer.name) }
+    var address by remember { mutableStateOf(customer.address) }
+    var powerVa by remember { mutableStateOf(customer.power_va.toString()) }
+    var tariff by remember { mutableStateOf(customer.tariff) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Edit Pelanggan",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1565C0)
+                )
+
+                OutlinedTextField(
+                    value = customer.customer_id,
+                    onValueChange = {},
+                    label = { Text("ID Pelanggan") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    readOnly = true,
+                    enabled = false
+                )
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nama Pelanggan") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = { Text("Alamat") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = powerVa,
+                        onValueChange = { powerVa = it },
+                        label = { Text("Daya (VA)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = tariff,
+                        onValueChange = { tariff = it },
+                        label = { Text("Tarif (R1/R2)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Batal", color = Color.Gray)
+                    }
+                    Button(
+                        onClick = {
+                            val updatedCustomer = customer.copy(
+                                name = name,
+                                address = address,
+                                power_va = powerVa.toIntOrNull() ?: customer.power_va,
+                                tariff = tariff
+                            )
+                            onSave(updatedCustomer)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
+                        enabled = name.isNotBlank() && address.isNotBlank()
+                    ) {
+                        Text("Simpan")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -235,7 +382,10 @@ fun AddCustomerDialog(
 @Composable
 fun CustomerCard(
     customer: Customer,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    isAdmin: Boolean = false
 ) {
     Card(
         modifier = Modifier
@@ -335,6 +485,17 @@ fun CustomerCard(
                                 color = Color(0xFFFF9800)
                             )
                         }
+                    }
+                }
+            }
+
+            if (isAdmin) {
+                Column {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF1565C0))
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Hapus", tint = Color.Red)
                     }
                 }
             }

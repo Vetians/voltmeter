@@ -20,8 +20,7 @@ if ($method === 'POST') {
 
     $customerId = $data->customer_id;
     $meterNumber = $data->meters[0]->meter_number;
-    
-    // Fallback work_order_id jika dari Android tidak dikirim
+
     $workOrderId = $data->work_order_id ?? '';
     if (empty($workOrderId)) {
         $currentMonth = (int) date('m');
@@ -33,7 +32,7 @@ if ($method === 'POST') {
             $workOrderId = $wo['work_order_id'];
         } else {
             http_response_code(400);
-            echo json_encode(["message" => "Gagal: Tidak ada Work Order aktif bulan ini untuk menampung pelanggan."]);
+            echo json_encode(["message" => "Gagal: Tidak ada Work Order aktif bulan ini."]);
             exit();
         }
     }
@@ -44,7 +43,7 @@ if ($method === 'POST') {
         $stmtCustomer = $db->prepare("INSERT INTO customers (customer_id, work_order_id, name, address, power_va, tariff, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $lat = isset($data->latitude) ? $data->latitude : 0.0;
         $lng = isset($data->longitude) ? $data->longitude : 0.0;
-        
+
         $stmtCustomer->execute([
             $customerId,
             $workOrderId,
@@ -68,6 +67,54 @@ if ($method === 'POST') {
         http_response_code(500);
         echo json_encode(["success" => false, "message" => "Database error: " . $e->getMessage()]);
     }
+
+} else if ($method === 'PUT') {
+    $data = json_decode(file_get_contents("php://input"));
+
+    if (empty($data->customer_id)) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "customer_id harus diisi"]);
+        exit();
+    }
+
+    try {
+        $stmt = $db->prepare("UPDATE customers SET name = ?, address = ?, power_va = ?, tariff = ?, latitude = ?, longitude = ? WHERE customer_id = ?");
+        $stmt->execute([
+            $data->name ?? '',
+            $data->address ?? '',
+            $data->power_va ?? 0,
+            $data->tariff ?? '',
+            $data->latitude ?? 0.0,
+            $data->longitude ?? 0.0,
+            $data->customer_id
+        ]);
+        echo json_encode(["success" => true, "message" => "Customer berhasil diperbarui"]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Database error: " . $e->getMessage()]);
+    }
+
+} else if ($method === 'DELETE') {
+    $customerId = $_GET['customer_id'] ?? null;
+
+    if (empty($customerId)) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "customer_id harus diisi"]);
+        exit();
+    }
+
+    try {
+        $db->beginTransaction();
+        $stmt = $db->prepare("DELETE FROM customers WHERE customer_id = ?");
+        $stmt->execute([$customerId]);
+        $db->commit();
+        echo json_encode(["success" => true, "message" => "Customer berhasil dihapus"]);
+    } catch (PDOException $e) {
+        $db->rollBack();
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Database error: " . $e->getMessage()]);
+    }
+
 } else {
     $currentMonth = (int) date('m');
     $currentYear = (int) date('Y');
@@ -86,7 +133,7 @@ if ($method === 'POST') {
         $stmtMeter = $db->prepare("SELECT * FROM meters WHERE customer_id = ? ORDER BY meter_index ASC");
         $stmtMeter->execute([$customer['customer_id']]);
         $meters = $stmtMeter->fetchAll();
-        
+
         $metersData = [];
         foreach ($meters as $m) {
             $metersData[] = [
@@ -94,7 +141,7 @@ if ($method === 'POST') {
                 'last_reading' => (float) $m['last_reading']
             ];
         }
-        
+
         $result[] = [
             'customer_id' => $customer['customer_id'],
             'name' => $customer['name'],

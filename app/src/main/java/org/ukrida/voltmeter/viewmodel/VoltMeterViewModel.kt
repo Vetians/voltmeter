@@ -30,8 +30,12 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     // ============= ADMIN STATE =============
     var adminStats = mutableStateOf(StatsResponse())
     var adminUsersList = mutableStateOf<List<User>>(emptyList())
-    var selectedAdminMonth = mutableStateOf<Int?>(null)
-    var selectedAdminYear = mutableStateOf<Int?>(null)
+    var selectedAdminMonth = mutableStateOf<Int?>(java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1)
+    var selectedAdminYear = mutableStateOf<Int?>(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR))
+
+    // ============= SURVEYOR FILTER STATE =============
+    var selectedSurveyorMonth = mutableStateOf<Int?>(java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1)
+    var selectedSurveyorYear = mutableStateOf<Int?>(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR))
 
     // ============= PENDING / VERIFIED / REJECTED STATE =============
     var pendingRecords = mutableStateOf<List<MeterRecord>>(emptyList())
@@ -206,6 +210,26 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         }
     }
 
+    fun deleteUser(id: Int) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val response = repo.deleteUser(token, id)
+                if (response.success) {
+                    successMessage.value = "Pengguna berhasil dihapus"
+                    loadAdminData()
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal menghapus pengguna: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
     fun addCustomer(customer: Customer) {
         val token = currentUser.value?.token ?: return
         viewModelScope.launch {
@@ -220,6 +244,46 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 }
             } catch (e: Exception) {
                 errorMessage.value = "Gagal menambah pelanggan: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun updateCustomer(customer: Customer) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val response = repo.updateCustomer(token, customer)
+                if (response.success) {
+                    successMessage.value = "Pelanggan berhasil diperbarui"
+                    loadAllCustomers()
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal memperbarui pelanggan: ${e.message}"
+            } finally {
+                isLoading.value = false
+            }
+        }
+    }
+
+    fun deleteCustomer(customerId: String) {
+        val token = currentUser.value?.token ?: return
+        viewModelScope.launch {
+            try {
+                isLoading.value = true
+                val response = repo.deleteCustomer(token, customerId)
+                if (response.success) {
+                    successMessage.value = "Pelanggan berhasil dihapus"
+                    loadAllCustomers()
+                } else {
+                    errorMessage.value = response.message
+                }
+            } catch (e: Exception) {
+                errorMessage.value = "Gagal menghapus pelanggan: ${e.message}"
             } finally {
                 isLoading.value = false
             }
@@ -327,7 +391,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 }
                 customers.value = allCustomers
 
-                val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("id", "ID"))
+                val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.forLanguageTag("id"))
                 lastSync.value = dateFormat.format(Date())
 
                 successMessage.value = "Berhasil sync ${allCustomers.size} data pelanggan"

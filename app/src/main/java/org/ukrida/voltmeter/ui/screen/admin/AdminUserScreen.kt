@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
@@ -21,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
 
@@ -32,6 +32,8 @@ fun AdminUserScreen(
 ) {
     val users = viewModel.adminUsersList.value
     var selectedUser by remember { mutableStateOf<User?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deletingUser by remember { mutableStateOf<User?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadAdminData()
@@ -44,7 +46,7 @@ fun AdminUserScreen(
                 containerColor = Color(0xFF1565C0),
                 contentColor = Color.White
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Tambah Pengguna")
+                Icon(Icons.Default.Add, contentDescription = "Tambah Petugas")
             }
         }
     ) { padding ->
@@ -55,7 +57,7 @@ fun AdminUserScreen(
                 .padding(16.dp)
         ) {
             Text(
-                text = "Daftar Pengguna",
+                text = "Daftar Petugas",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -67,13 +69,18 @@ fun AdminUserScreen(
                 items(users) { user ->
                     UserCard(
                         user = user,
-                        onClick = { selectedUser = user }
+                        onClick = { selectedUser = user },
+                        onDelete = {
+                            deletingUser = user
+                            showDeleteDialog = true
+                        }
                     )
                 }
             }
         }
     }
 
+    // Dialog Edit
     selectedUser?.let { user ->
         EditUserDialog(
             user = user,
@@ -81,6 +88,32 @@ fun AdminUserScreen(
             onSave = { updatedUser ->
                 viewModel.updateUser(updatedUser)
                 selectedUser = null
+            }
+        )
+    }
+
+    // Dialog Hapus
+    if (showDeleteDialog && deletingUser != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false; deletingUser = null },
+            title = { Text("Hapus Petugas?") },
+            text = { Text("Yakin ingin menghapus \"${deletingUser!!.name}\"? Tindakan ini tidak dapat dibatalkan.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteUser(deletingUser!!.id)
+                        showDeleteDialog = false
+                        deletingUser = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Hapus")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false; deletingUser = null }) {
+                    Text("Batal")
+                }
             }
         )
     }
@@ -98,39 +131,19 @@ fun EditUserDialog(
     var password by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Edit Pengguna",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1565C0)
-                )
-
-                Text(
-                    text = "Username: ${user.username}",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Petugas", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nama Pengguna") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    label = { Text("Nama Lengkap") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                // Role Dropdown
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = { expanded = it }
@@ -141,8 +154,7 @@ fun EditUserDialog(
                         readOnly = true,
                         label = { Text("Role") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable, true).fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expanded,
@@ -150,17 +162,11 @@ fun EditUserDialog(
                     ) {
                         DropdownMenuItem(
                             text = { Text("ADMIN") },
-                            onClick = {
-                                role = "admin"
-                                expanded = false
-                            }
+                            onClick = { role = "admin"; expanded = false }
                         )
                         DropdownMenuItem(
-                            text = { Text("PETUGAS") },
-                            onClick = {
-                                role = "petugas"
-                                expanded = false
-                            }
+                            text = { Text("SURVEYOR") },
+                            onClick = { role = "surveyor"; expanded = false }
                         )
                     }
                 }
@@ -168,45 +174,41 @@ fun EditUserDialog(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password Baru (Opsional)") },
-                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Password Baru (opsional)") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                     visualTransformation = PasswordVisualTransformation()
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Batal", color = Color.Gray)
-                    }
-                    Button(
-                        onClick = {
-                            val updatedUser = user.copy(
-                                name = name,
-                                role = role,
-                                password = password.ifBlank { "" }
-                            )
-                            onSave(updatedUser)
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
-                        enabled = name.isNotBlank()
-                    ) {
-                        Text("Simpan")
-                    }
-                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val updatedUser = user.copy(
+                        name = name,
+                        role = role,
+                        password = password.ifBlank { "" }
+                    )
+                    onSave(updatedUser)
+                },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Simpan")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal", color = Color.Gray)
             }
         }
-    }
+    )
 }
 
 @Composable
 fun UserCard(
     user: User,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: () -> Unit
 ) {
     val isAdmin = user.role == "admin"
     val iconBgColor = if (isAdmin) Color(0xFFFDE0DD) else Color(0xFFE3F2FD)
@@ -233,30 +235,21 @@ fun UserCard(
                     .background(iconBgColor),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconColor
-                )
+                Icon(imageVector = icon, contentDescription = null, tint = iconColor)
             }
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(
-                    text = user.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                Text(
-                    text = "ID: ${user.user_id} | Username: ${user.username}",
-                    color = Color.Gray,
-                    fontSize = 12.sp
-                )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = user.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(text = "ID: ${user.user_id} | Username: ${user.username}", color = Color.Gray, fontSize = 12.sp)
                 Text(
                     text = "Role: ${user.role.uppercase()}",
                     color = iconColor,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Hapus", tint = Color.Red)
             }
         }
     }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +46,7 @@ fun AdminVerificationScreen(viewModel: VoltMeterViewModel) {
             selectedTabIndex = selectedTabIndex,
             containerColor = Color.White,
             indicator = { tabPositions ->
-                TabRowDefaults.Indicator(
+                SecondaryIndicator(
                     Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
                     color = Color(0xFF1565C0)
                 )

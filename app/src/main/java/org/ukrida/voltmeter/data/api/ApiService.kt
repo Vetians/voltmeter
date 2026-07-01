@@ -19,6 +19,7 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.PUT
 import retrofit2.http.Query
 
 interface ApiService {
@@ -122,16 +123,34 @@ interface ApiService {
         @Body user: User
     ): retrofit2.Response<Unit>
 
-    @retrofit2.http.PUT("users.php")
+    @PUT("users.php")
     suspend fun updateUser(
         @Header("Authorization") token: String,
         @Body user: User
+    ): ApiResponse
+
+    @retrofit2.http.HTTP(method = "DELETE", path = "users.php", hasBody = false)
+    suspend fun deleteUser(
+        @Header("Authorization") token: String,
+        @retrofit2.http.Query("id") id: Int
     ): ApiResponse
 
     @POST("customers.php")
     suspend fun addCustomer(
         @Header("Authorization") token: String,
         @Body customer: Customer
+    ): ApiResponse
+
+    @retrofit2.http.PUT("customers.php")
+    suspend fun updateCustomer(
+        @Header("Authorization") token: String,
+        @Body customer: Customer
+    ): ApiResponse
+
+    @retrofit2.http.HTTP(method = "DELETE", path = "customers.php", hasBody = false)
+    suspend fun deleteCustomer(
+        @Header("Authorization") token: String,
+        @retrofit2.http.Query("customer_id") customerId: String
     ): ApiResponse
 
     @POST("verifikasi.php")
