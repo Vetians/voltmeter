@@ -14,8 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.automirrored.filled.ListAlt
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,13 +53,13 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
     }
 
     var expandedMonth by remember { mutableStateOf(false) }
-    val months = listOf("Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
-    val selectedMonthIndex = (viewModel.selectedAdminMonth.value ?: (Calendar.getInstance().get(Calendar.MONTH) + 1)) - 1
+    val months = listOf("Semua Bulan", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
+    val selectedMonthIndex = viewModel.selectedAdminMonth.value ?: 0
 
     var expandedYear by remember { mutableStateOf(false) }
     val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-    val years = listOf(currentYear.toString(), (currentYear - 1).toString())
-    val selectedYearText = viewModel.selectedAdminYear.value?.toString() ?: currentYear.toString()
+    val years = listOf("Semua Tahun", currentYear.toString(), (currentYear - 1).toString())
+    val selectedYearText = viewModel.selectedAdminYear.value?.toString() ?: "Semua Tahun"
 
     LaunchedEffect(viewModel.selectedAdminMonth.value, viewModel.selectedAdminYear.value) {
         viewModel.loadAdminData()
@@ -144,7 +145,7 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                             DropdownMenuItem(
                                 text = { Text(selectionOption) },
                                 onClick = {
-                                    viewModel.selectedAdminMonth.value = index + 1
+                                    viewModel.selectedAdminMonth.value = if (index == 0) null else index
                                     expandedMonth = false
                                 }
                             )
@@ -173,12 +174,23 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                             DropdownMenuItem(
                                 text = { Text(selectionOption) },
                                 onClick = {
-                                    viewModel.selectedAdminYear.value = selectionOption.toInt()
+                                    viewModel.selectedAdminYear.value = if (selectionOption == "Semua Tahun") null else selectionOption.toInt()
                                     expandedYear = false
                                 }
                             )
                         }
                     }
+                }
+
+                IconButton(
+                    onClick = {
+                        val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
+                        val currentYearVal = Calendar.getInstance().get(Calendar.YEAR)
+                        viewModel.selectedAdminMonth.value = currentMonth
+                        viewModel.selectedAdminYear.value = currentYearVal
+                    }
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Reset ke Bulan Ini", tint = Color(0xFF1565C0))
                 }
             }
         }
@@ -203,7 +215,7 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
 
         StatCard(
             modifier = Modifier.fillMaxWidth(),
-            icon = Icons.AutoMirrored.Filled.ListAlt,
+            icon = Icons.AutoMirrored.Filled.List,
             value = "${stats.total_kunjungan}",
             label = "Total Kunjungan",
             color = Color(0xFF1565C0)

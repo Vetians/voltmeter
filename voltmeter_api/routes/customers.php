@@ -128,6 +128,19 @@ if ($method === 'POST') {
     $stmt->execute([$currentMonth, $currentYear]);
     $customers = $stmt->fetchAll();
 
+    // Fallback: if no customers for current month, get from most recent active work orders
+    if (empty($customers)) {
+        $stmtFallback = $db->prepare("
+            SELECT c.*, wo.work_order_id
+            FROM customers c
+            JOIN work_orders wo ON wo.work_order_id = c.work_order_id
+            WHERE wo.status = 'active'
+            ORDER BY wo.year DESC, wo.month DESC
+        ");
+        $stmtFallback->execute();
+        $customers = $stmtFallback->fetchAll();
+    }
+
     $result = [];
     foreach ($customers as $customer) {
         $stmtMeter = $db->prepare("SELECT * FROM meters WHERE customer_id = ? ORDER BY meter_index ASC");

@@ -20,11 +20,12 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.automirrored.filled.ListAlt
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -32,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -61,14 +63,15 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import androidx.compose.material.icons.filled.FilterList
 
-private fun filterRecordByMonthYear(record: MeterRecord, month: Int, year: Int): Boolean {
+private fun filterRecordByMonthYear(record: MeterRecord, month: Int?, year: Int?): Boolean {
+    if (month == null && year == null) return true
     if (record.record_date.isEmpty()) return false
     return try {
         val parts = record.record_date.split("-")
         if (parts.size >= 3) {
             val recordMonth = parts[1].toIntOrNull() ?: 0
             val recordYear = parts[0].toIntOrNull() ?: 0
-            recordMonth == month && recordYear == year
+            (month == null || recordMonth == month) && (year == null || recordYear == year)
         } else {
             false
         }
@@ -85,8 +88,6 @@ fun HomeScreen(
 ) {
     val user = viewModel.currentUser.value
     val customers = viewModel.customers.value
-    val todayRecords = viewModel.todayRecords.value
-    val isLoading = viewModel.isLoading.value
     val lastSync = viewModel.lastSync.value
     val pendingRecords = viewModel.pendingRecords.value
     val verifiedRecords = viewModel.verifiedRecords.value
@@ -127,13 +128,15 @@ fun HomeScreen(
     )
     val monthName = monthNames[currentMonth]
 
-    val selectedMonth = viewModel.selectedSurveyorMonth.value ?: (currentMonth + 1)
-    val selectedYear = viewModel.selectedSurveyorYear.value ?: currentYear
+    val selectedMonth = viewModel.selectedSurveyorMonth.value
+    val selectedYear = viewModel.selectedSurveyorYear.value
 
-    val filterMonthNames = listOf("Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
+    val filterMonthNames = listOf("Semua Bulan", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
     var expandedMonthFilter by remember { mutableStateOf(false) }
     var expandedYearFilter by remember { mutableStateOf(false) }
-    val filterYears = listOf(currentYear.toString(), (currentYear - 1).toString())
+    val filterYears = listOf("Semua Tahun", currentYear.toString(), (currentYear - 1).toString())
+    val selectedMonthDisplay = if (selectedMonth == null) "Semua Bulan" else filterMonthNames[selectedMonth]
+    val selectedYearDisplay = if (selectedYear == null) "Semua Tahun" else selectedYear.toString()
 
     val filteredPendingRecords = remember(pendingRecords, selectedMonth, selectedYear) {
         pendingRecords.filter { record ->
@@ -245,7 +248,7 @@ fun HomeScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
-                        value = filterMonthNames[selectedMonth - 1],
+                        value = selectedMonthDisplay,
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMonthFilter) },
@@ -260,7 +263,7 @@ fun HomeScreen(
                             DropdownMenuItem(
                                 text = { Text(name) },
                                 onClick = {
-                                    viewModel.selectedSurveyorMonth.value = index + 1
+                                    viewModel.selectedSurveyorMonth.value = if (index == 0) null else index
                                     expandedMonthFilter = false
                                 }
                             )
@@ -274,7 +277,7 @@ fun HomeScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
-                        value = selectedYear.toString(),
+                        value = selectedYearDisplay,
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedYearFilter) },
@@ -289,12 +292,22 @@ fun HomeScreen(
                             DropdownMenuItem(
                                 text = { Text(year) },
                                 onClick = {
-                                    viewModel.selectedSurveyorYear.value = year.toInt()
+                                    viewModel.selectedSurveyorYear.value = if (year == "Semua Tahun") null else year.toInt()
                                     expandedYearFilter = false
                                 }
                             )
                         }
                     }
+                }
+
+                IconButton(
+                    onClick = {
+                        val now = Calendar.getInstance()
+                        viewModel.selectedSurveyorMonth.value = now.get(Calendar.MONTH) + 1
+                        viewModel.selectedSurveyorYear.value = now.get(Calendar.YEAR)
+                    }
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Reset", tint = Color(0xFF1565C0))
                 }
             }
         }
@@ -334,7 +347,7 @@ fun HomeScreen(
 
         DropdownSection(
             title = "Daftar Kerja",
-            icon = Icons.AutoMirrored.Filled.ListAlt,
+            icon = Icons.AutoMirrored.Filled.List,
             count = customers.size,
             expanded = expandedSection == "kerja",
             onToggle = { expandedSection = if (expandedSection == "kerja") null else "kerja" }
