@@ -7,7 +7,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
-    
+
     $stmt = $db->prepare("INSERT INTO users (user_id, username, password, full_name, role) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([
         'USR' . date('YmdHis'),
@@ -16,15 +16,16 @@ if ($method === 'POST') {
         $input['name'],
         $input['role'] ?? 'surveyor'
     ]);
-    
+
     http_response_code(201);
     echo json_encode(['success' => true]);
+
 } else if ($method === 'PUT') {
     $data = json_decode(file_get_contents("php://input"));
 
     if (empty($data->id) || empty($data->name) || empty($data->role)) {
         http_response_code(400);
-        echo json_encode(["message" => "Incomplete data. ID, name, and role are required."]);
+        echo json_encode(["success" => false, "message" => "ID, name, and role are required."]);
         exit();
     }
 
@@ -42,6 +43,25 @@ if ($method === 'POST') {
         http_response_code(500);
         echo json_encode(["success" => false, "message" => "Database error: " . $e->getMessage()]);
     }
+
+} else if ($method === 'DELETE') {
+    $id = $_GET['id'] ?? null;
+
+    if (empty($id)) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "ID harus diisi"]);
+        exit();
+    }
+
+    try {
+        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+        echo json_encode(["success" => true, "message" => "User berhasil dihapus"]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Database error: " . $e->getMessage()]);
+    }
+
 } else {
     $stmt = $db->prepare("SELECT id, user_id, full_name AS name, username, role FROM users");
     $stmt->execute();

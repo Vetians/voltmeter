@@ -16,7 +16,7 @@ import androidx.navigation.NavHostController
 sealed class AdminScreen(val route: String, val label: String) {
     object Dashboard : AdminScreen(route = "admin_dashboard", label = "Dashboard")
     object Verification : AdminScreen(route = "admin_verification", label = "Verifikasi")
-    object Users : AdminScreen(route = "admin_users", label = "Pengguna")
+    object Users : AdminScreen(route = "admin_users", label = "Petugas")
     object Customers : AdminScreen(route = "admin_customers", label = "Pelanggan")
     object Profile : AdminScreen(route = "admin_profile", label = "Profil")
 }

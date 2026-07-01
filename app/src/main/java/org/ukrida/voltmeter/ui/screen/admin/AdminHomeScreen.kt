@@ -11,12 +11,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,7 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.ukrida.voltmeter.ui.screen.StatCard
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +40,17 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
     val stats = viewModel.adminStats.value
     val user = viewModel.currentUser.value
     val isLoading = viewModel.isLoading.value
+
+    val dateFormat = remember { SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.forLanguageTag("id")) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = System.currentTimeMillis()
+            delay(1000L)
+        }
+    }
 
     var expandedMonth by remember { mutableStateOf(false) }
     val months = listOf("Semua Bulan", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
@@ -72,6 +88,31 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
 
         Card(
             modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = dateFormat.format(Date(currentTime)),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1565C0)
+                )
+                Text(
+                    text = timeFormat.format(Date(currentTime)),
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0D47A1)
+                )
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
         ) {
             Row(
@@ -93,7 +134,7 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMonth) },
-                        modifier = Modifier.menuAnchor(),
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable, true),
                         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
                     )
                     ExposedDropdownMenu(
@@ -122,7 +163,7 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedYear) },
-                        modifier = Modifier.menuAnchor(),
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable, true),
                         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
                     )
                     ExposedDropdownMenu(
@@ -140,86 +181,64 @@ fun AdminHomeScreen(viewModel: VoltMeterViewModel) {
                         }
                     }
                 }
+
+                IconButton(
+                    onClick = {
+                        val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
+                        val currentYearVal = Calendar.getInstance().get(Calendar.YEAR)
+                        viewModel.selectedAdminMonth.value = currentMonth
+                        viewModel.selectedAdminYear.value = currentYearVal
+                    }
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Reset ke Bulan Ini", tint = Color(0xFF1565C0))
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        val totalData = stats.total_kunjungan
+        StatCard(
+            modifier = Modifier.fillMaxWidth(),
+            icon = Icons.Default.People,
+            value = "${stats.total_pelanggan}",
+            label = "Total Pelanggan",
+            color = Color(0xFF7B1FA2)
+        )
+
+        StatCard(
+            modifier = Modifier.fillMaxWidth(),
+            icon = Icons.Default.Bolt,
+            value = "${stats.total_meteran}",
+            label = "Total Meteran",
+            color = Color(0xFF0288D1)
+        )
+
+        StatCard(
+            modifier = Modifier.fillMaxWidth(),
+            icon = Icons.AutoMirrored.Filled.List,
+            value = "${stats.total_kunjungan}",
+            label = "Total Kunjungan",
+            color = Color(0xFF1565C0)
+        )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.ListAlt,
-                value = "${stats.total_kunjungan}",
-                label = "Total Kunjungan",
-                color = Color(0xFF1565C0)
-            )
             StatCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.CheckCircle,
-                value = "${stats.terbaca_normal}",
-                label = "Terbaca Normal",
-                color = Color(0xFF4CAF50),
-                totalValue = totalData
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            StatCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.Home,
-                value = "${stats.rumah_kosong}",
-                label = "Rumah Kosong",
-                color = Color(0xFFFF9800),
-                totalValue = totalData
+                value = "${stats.total_verified}",
+                label = "Terverifikasi",
+                color = Color(0xFF4CAF50)
             )
             StatCard(
                 modifier = Modifier.weight(1f),
-                icon = Icons.Default.Block,
-                value = "${stats.halangan}",
-                label = "Halangan",
-                color = Color(0xFFF44336),
-                totalValue = totalData
+                icon = Icons.Default.Schedule,
+                value = "${stats.total_unverified}",
+                label = "Belum Diverifikasi",
+                color = Color(0xFFFF9800)
             )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            StatCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.Cancel,
-                value = "${stats.tidak_diterima}",
-                label = "Tidak Diterima",
-                color = Color(0xFFC62828),
-                totalValue = totalData
-            )
-            // Placeholder card to keep layout balanced (or we can just use 1 card spanning full width)
-            Spacer(modifier = Modifier.weight(1f))
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("Peringatan Terbaru", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                if (stats.rumah_kosong > 0 || stats.halangan > 0 || stats.tidak_diterima > 0) {
-                    Text("Terdapat ${stats.rumah_kosong + stats.halangan} kunjungan bermasalah dan ${stats.tidak_diterima} laporan ditolak. Silakan tinjau daftar pelanggan untuk detailnya.", color = Color(0xFFE65100), fontSize = 14.sp)
-                } else {
-                    Text("Tidak ada peringatan khusus saat ini. Semua laporan terbaca normal.", color = Color(0xFF2E7D32), fontSize = 14.sp)
-                }
-            }
         }
     }
 }

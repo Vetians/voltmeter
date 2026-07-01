@@ -97,11 +97,23 @@ class VoltMeterRepository(private val api: ApiService) {
         return api.updateUser("Bearer $token", user)
     }
 
+    suspend fun deleteUser(token: String, id: Int): ApiResponse {
+        return api.deleteUser("Bearer $token", id)
+    }
+
     suspend fun verifyRecord(token: String, request: VerifyRequest): ApiResponse {
         return api.verifyRecord("Bearer $token", request)
     }
 
     suspend fun addCustomer(token: String, customer: Customer): ApiResponse {
         return api.addCustomer("Bearer $token", customer)
+    }
+
+    suspend fun updateCustomer(token: String, customer: Customer): ApiResponse {
+        return api.updateCustomer("Bearer $token", customer)
+    }
+
+    suspend fun deleteCustomer(token: String, customerId: String): ApiResponse {
+        return api.deleteCustomer("Bearer $token", customerId)
     }
 }

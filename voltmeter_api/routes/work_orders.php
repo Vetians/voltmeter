@@ -6,7 +6,7 @@ $db = getDB();
 $currentMonth = (int) date('m');
 $currentYear = (int) date('Y');
 
-// Get active work orders
+// Get active work orders for current month
 $stmt = $db->prepare("
     SELECT wo.*, c.customer_id, c.name, c.address, c.power_va, c.tariff, 
            c.last_month_usage, c.last_meter_reading, c.latitude, c.longitude
@@ -16,6 +16,20 @@ $stmt = $db->prepare("
 ");
 $stmt->execute([$currentMonth, $currentYear]);
 $rows = $stmt->fetchAll();
+
+// Fallback: if no work orders for current month, get the most recent active work orders
+if (empty($rows)) {
+    $stmtFallback = $db->prepare("
+        SELECT wo.*, c.customer_id, c.name, c.address, c.power_va, c.tariff, 
+               c.last_month_usage, c.last_meter_reading, c.latitude, c.longitude
+        FROM work_orders wo
+        JOIN customers c ON c.work_order_id = wo.work_order_id
+        WHERE wo.status = 'active'
+        ORDER BY wo.year DESC, wo.month DESC
+    ");
+    $stmtFallback->execute();
+    $rows = $stmtFallback->fetchAll();
+}
 
 // Group by work_order_id
 $workOrders = [];

@@ -52,11 +52,11 @@ if (isset($_GET['statistik']) && $_GET['statistik'] == 1) {
     }
 
     echo json_encode([
+        "total_pelanggan"   => (int) $db->query("SELECT COUNT(*) FROM customers")->fetchColumn(),
+        "total_meteran"     => (int) $db->query("SELECT COUNT(*) FROM meters")->fetchColumn(),
         "total_kunjungan"  => getStat($db, null, $sql_filter, $params),
-        "terbaca_normal"   => getStat($db, 'TERBACA_NORMAL', $sql_filter, $params),
-        "rumah_kosong"     => getStat($db, 'RUMAH_KOSONG', $sql_filter, $params),
-        "halangan"         => getStat($db, 'HALANGAN', $sql_filter, $params),
-        "tidak_diterima"   => getStatVerification($db, 'REJECTED', $sql_filter, $params)
+        "total_verified"   => getStatVerification($db, 'VERIFIED', $sql_filter, $params),
+        "total_unverified" => getStatVerification($db, 'PENDING', $sql_filter, $params)
     ]);
 
 } else {
