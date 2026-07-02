@@ -155,6 +155,18 @@ if ($method === 'POST') {
             ];
         }
 
+        // Get monthly verification status for this customer
+        $currentMonth = (int) date('m');
+        $currentYear = (int) date('Y');
+        $stmtStatus = $db->prepare("
+            SELECT verification_status FROM meter_records 
+            WHERE customer_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
+            ORDER BY created_at DESC LIMIT 1
+        ");
+        $stmtStatus->execute([$customer['customer_id'], $currentMonth, $currentYear]);
+        $statusRow = $stmtStatus->fetch();
+        $monthlyStatus = $statusRow ? $statusRow['verification_status'] : null;
+
         $result[] = [
             'customer_id' => $customer['customer_id'],
             'name' => $customer['name'],
@@ -165,7 +177,8 @@ if ($method === 'POST') {
             'last_meter_reading' => (float) $customer['last_meter_reading'],
             'meters' => $metersData,
             'latitude' => (float) $customer['latitude'],
-            'longitude' => (float) $customer['longitude']
+            'longitude' => (float) $customer['longitude'],
+            'monthly_status' => $monthlyStatus
         ];
     }
     echo json_encode($result);

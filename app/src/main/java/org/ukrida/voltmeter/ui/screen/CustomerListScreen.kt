@@ -43,6 +43,17 @@ fun CustomerListScreen(
     var editingCustomer by remember { mutableStateOf<Customer?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingCustomer by remember { mutableStateOf<Customer?>(null) }
+    var blockedCustomer by remember { mutableStateOf<Customer?>(null) }
+    var selectedFilter by remember { mutableStateOf("semua") }
+
+    val filteredCustomers = remember(customers, selectedFilter) {
+        when (selectedFilter) {
+            "verified" -> customers.filter { it.monthly_status == "VERIFIED" }
+            "pending" -> customers.filter { it.monthly_status == "PENDING" }
+            "rejected" -> customers.filter { it.monthly_status == "REJECTED" }
+            else -> customers
+        }
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -88,23 +99,83 @@ fun CustomerListScreen(
                 }
             }
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(
-                    top = 16.dp,
-                    bottom = 80.dp
-                )
             ) {
-                items(customers) { customer ->
+                if (isAdmin) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val filters = listOf(
+                            "semua" to "Semua",
+                            "verified" to "Terverifikasi",
+                            "pending" to "Menunggu",
+                            "rejected" to "Ditolak"
+                        )
+                        filters.forEach { (key, label) ->
+                            val isSelected = selectedFilter == key
+                            val bgColor = when (key) {
+                                "verified" -> Color(0xFF4CAF50)
+                                "pending" -> Color(0xFFFF9800)
+                                "rejected" -> Color(0xFFF44336)
+                                else -> Color(0xFF1565C0)
+                            }
+                            val count = when (key) {
+                                "verified" -> customers.count { it.monthly_status == "VERIFIED" }
+                                "pending" -> customers.count { it.monthly_status == "PENDING" }
+                                "rejected" -> customers.count { it.monthly_status == "REJECTED" }
+                                else -> customers.size
+                            }
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedFilter = key },
+                                label = {
+                                    Text(
+                                        text = "$label ($count)",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = bgColor.copy(alpha = 0.2f),
+                                    selectedLabelColor = bgColor
+                                )
+                            )
+                        }
+                    }
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(
+                        top = if (isAdmin) 0.dp else 16.dp,
+                        bottom = 80.dp
+                    )
+                ) {
+                    items(filteredCustomers) { customer ->
                     CustomerCard(
                         customer = customer,
                         onClick = {
-                            viewModel.selectCustomer(customer)
-                            onCustomerClick(customer)
+                            if (isAdmin) {
+                                viewModel.selectCustomer(customer)
+                                onCustomerClick(customer)
+                            } else {
+                                val canRecord = viewModel.canRecord(customer)
+                                if (canRecord) {
+                                    viewModel.selectCustomer(customer)
+                                    onCustomerClick(customer)
+                                } else {
+                                    blockedCustomer = customer
+                                }
+                            }
                         },
                         onEdit = { editingCustomer = customer },
                         onDelete = { deletingCustomer = customer; showDeleteDialog = true },
@@ -113,6 +184,7 @@ fun CustomerListScreen(
                 }
             }
         }
+    }
     }
 
     if (showAddDialog) {
@@ -156,6 +228,20 @@ fun CustomerListScreen(
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false; deletingCustomer = null }) {
                     Text("Batal")
+                }
+            }
+        )
+    }
+
+    blockedCustomer?.let { customer ->
+        val reason = viewModel.getRecordBlockReason(customer)
+        AlertDialog(
+            onDismissRequest = { blockedCustomer = null },
+            title = { Text("Tidak Bisa Input") },
+            text = { Text(reason ?: "Pencatatan tidak tersedia untuk pelanggan ini.") },
+            confirmButton = {
+                TextButton(onClick = { blockedCustomer = null }) {
+                    Text("OK")
                 }
             }
         )
@@ -387,6 +473,19 @@ fun CustomerCard(
     onDelete: () -> Unit = {},
     isAdmin: Boolean = false
 ) {
+    val statusColor = when (customer.monthly_status) {
+        "VERIFIED" -> Color(0xFF4CAF50)
+        "PENDING" -> Color(0xFFFF9800)
+        "REJECTED" -> Color(0xFFF44336)
+        else -> null
+    }
+    val statusLabel = when (customer.monthly_status) {
+        "VERIFIED" -> "Terverifikasi"
+        "PENDING" -> "Menunggu Verifikasi"
+        "REJECTED" -> "Ditolak"
+        else -> null
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -485,6 +584,22 @@ fun CustomerCard(
                                 color = Color(0xFFFF9800)
                             )
                         }
+                    }
+                }
+                if (statusLabel != null && statusColor != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(statusColor.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = statusLabel,
+                            fontSize = 10.sp,
+                            color = statusColor,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

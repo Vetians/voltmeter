@@ -10,7 +10,8 @@ data class Customer(
     val last_meter_reading: Double = 0.0,
     val meters: List<Meter> = emptyList(),
     val latitude: Double = 0.0,
-    val longitude: Double = 0.0
+    val longitude: Double = 0.0,
+    val monthly_status: String? = null
 )
 
 data class Meter(

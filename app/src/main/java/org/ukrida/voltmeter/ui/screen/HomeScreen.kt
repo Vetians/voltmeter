@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -94,6 +96,7 @@ fun HomeScreen(
     val rejectedRecords = viewModel.rejectedRecords.value
 
     var expandedSection by remember { mutableStateOf<String?>(null) }
+    var blockedCustomer by remember { mutableStateOf<Customer?>(null) }
 
     val dateFormat = remember { SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.forLanguageTag("id")) }
     val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
@@ -364,9 +367,14 @@ fun HomeScreen(
                         name = customer.name,
                         address = customer.address,
                         deadline = deadlines[customer.customer_id] ?: "-",
+                        monthlyStatus = customer.monthly_status,
                         onClick = {
-                            viewModel.selectCustomer(customer)
-                            onCustomerClick(customer)
+                            if (viewModel.canRecord(customer)) {
+                                viewModel.selectCustomer(customer)
+                                onCustomerClick(customer)
+                            } else {
+                                blockedCustomer = customer
+                            }
                         }
                     )
                 }
@@ -476,9 +484,23 @@ fun HomeScreen(
                     text = "Tekan tombol sync di pojok kanan atas untuk mensinkronisasi data penugasan",
                     fontSize = 13.sp,
                     color = Color(0xFF795548)
-                )
+                    )
             }
         }
+    }
+
+    blockedCustomer?.let { customer ->
+        val reason = viewModel.getRecordBlockReason(customer)
+        AlertDialog(
+            onDismissRequest = { blockedCustomer = null },
+            title = { Text("Tidak Bisa Input") },
+            text = { Text(reason ?: "Pencatatan tidak tersedia untuk pelanggan ini.") },
+            confirmButton = {
+                TextButton(onClick = { blockedCustomer = null }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 
@@ -551,8 +573,22 @@ private fun CustomerWorkCard(
     name: String,
     address: String,
     deadline: String,
+    monthlyStatus: String? = null,
     onClick: () -> Unit
 ) {
+    val statusColor = when (monthlyStatus) {
+        "VERIFIED" -> Color(0xFF4CAF50)
+        "PENDING" -> Color(0xFFFF9800)
+        "REJECTED" -> Color(0xFFF44336)
+        else -> null
+    }
+    val statusLabel = when (monthlyStatus) {
+        "VERIFIED" -> "Terverifikasi"
+        "PENDING" -> "Menunggu Verifikasi"
+        "REJECTED" -> "Ditolak - Bisa Input Ulang"
+        else -> null
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -584,6 +620,15 @@ private fun CustomerWorkCard(
                 color = Color(0xFFFF9800),
                 fontWeight = FontWeight.Medium
             )
+            if (statusLabel != null && statusColor != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = statusLabel,
+                    fontSize = 11.sp,
+                    color = statusColor,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
