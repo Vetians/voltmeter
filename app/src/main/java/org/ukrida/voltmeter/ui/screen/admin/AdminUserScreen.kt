@@ -40,6 +40,7 @@ fun AdminUserScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // tambahkan ini
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToAddUser,
@@ -48,13 +49,15 @@ fun AdminUserScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Tambah Petugas")
             }
-        }
+        },
+        containerColor = Color.Transparent
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(top = 8.dp)
         ) {
             Text(
                 text = "Daftar Petugas",

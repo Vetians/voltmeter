@@ -8,8 +8,12 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 
 sealed class Screen(val route: String, val label: String) {
@@ -23,7 +27,9 @@ sealed class Screen(val route: String, val label: String) {
 fun BottomNav(navController: NavHostController) {
     val items = listOf(Screen.Home, Screen.Customer, Screen.History, Screen.Profile)
 
-    NavigationBar {
+    NavigationBar(
+        containerColor = Color.White
+    ) {
         items.forEach { screen ->
             NavigationBarItem(
                 selected = false,
@@ -42,7 +48,20 @@ fun BottomNav(navController: NavHostController) {
                         Screen.Profile -> Icon(Icons.Default.Person, contentDescription = screen.label)
                     }
                 },
-                label = { Text(screen.label) }
+                label = {
+                    Text(
+                        screen.label,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = Color(0xFF0D47A1),
+                    selectedTextColor = Color(0xFF0D47A1),
+                    indicatorColor = Color(0xFFE3F2FD),
+                    unselectedIconColor = Color.Gray,
+                    unselectedTextColor = Color.Gray
+                )
             )
         }
     }

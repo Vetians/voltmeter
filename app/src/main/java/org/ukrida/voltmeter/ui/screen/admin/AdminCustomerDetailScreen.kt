@@ -53,6 +53,7 @@ fun AdminCustomerDetailScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // tambahkan ini
         topBar = {
             TopAppBar(
                 title = { Text("Detail Pelanggan") },

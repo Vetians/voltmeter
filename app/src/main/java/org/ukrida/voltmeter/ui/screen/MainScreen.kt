@@ -1,5 +1,8 @@
 package org.ukrida.voltmeter.ui.screen
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -18,7 +21,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -42,7 +48,6 @@ fun MainScreen(
     val currentRoute = navBackStackEntry?.destination?.route
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val isLoading = viewModel.isLoading.value
     val successMessage = viewModel.successMessage.value
     val errorMessage = viewModel.errorMessage.value
     val selectedCustomer = viewModel.selectedCustomer.value
@@ -65,7 +70,12 @@ fun MainScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(if (role == "admin") "VoltMeter Admin" else "VoltMeter")
+                    Text(
+                        text = if (role == "admin") "VoltMeter Admin" else "VoltMeter",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color.White
+                    )
                 },
                 actions = {
                     if (role != "admin") {
@@ -75,7 +85,7 @@ fun MainScreen(
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Sync",
-                                tint = Color(0xFF1565C0)
+                                tint = Color.White
                             )
                         }
                     }
@@ -93,12 +103,12 @@ fun MainScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Logout,
                             contentDescription = "Logout",
-                            tint = Color.Red
+                            tint = Color.White
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.White
+                    containerColor = Color(0xFF0D47A1)
                 )
             )
         },
@@ -110,126 +120,128 @@ fun MainScreen(
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {}
+        containerColor = Color(0xFFF5F7FA)
     ) { padding ->
-        NavHost(
-            navController = innerNavController,
-            startDestination = if (role == "admin") "admin_dashboard" else "home",
-            modifier = Modifier.padding(padding)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) {
-            // ================== PETUGAS ROUTES ==================
-            composable("home") {
-                HomeScreen(
-                    viewModel = viewModel,
-                    onCustomerClick = { customer ->
-                        innerNavController.navigate("recording")
-                    }
-                )
-            }
-
-            composable("customer") {
-                CustomerListScreen(
-                    viewModel = viewModel,
-                    onCustomerClick = { customer ->
-                        innerNavController.navigate("recording")
-                    }
-                )
-            }
-
-            composable("recording") {
-                selectedCustomer?.let { customer ->
-                    RecordingScreen(
+            NavHost(
+                navController = innerNavController,
+                startDestination = if (role == "admin") "admin_dashboard" else "home",
+            ) {
+                composable("home") {
+                    HomeScreen(
                         viewModel = viewModel,
-                        customer = customer,
-                        onRecordingSuccess = {
+                        onCustomerClick = { customer ->
+                            innerNavController.navigate("recording")
+                        }
+                    )
+                }
+
+                composable("customer") {
+                    CustomerListScreen(
+                        viewModel = viewModel,
+                        onCustomerClick = { customer ->
+                            innerNavController.navigate("recording")
+                        }
+                    )
+                }
+
+                composable("recording") {
+                    selectedCustomer?.let { customer ->
+                        RecordingScreen(
+                            viewModel = viewModel,
+                            customer = customer,
+                            onRecordingSuccess = {
+                                innerNavController.popBackStack()
+                            }
+                        )
+                    }
+                }
+
+                composable("history") {
+                    HistoryScreen(viewModel = viewModel)
+                }
+
+                composable("profile") {
+                    ProfileScreen(
+                        viewModel = viewModel,
+                        onLogout = {
+                            navController.navigate("login") {
+                                popUpTo(navController.graph.startDestinationId) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
+                composable("admin_dashboard") {
+                    AdminHomeScreen(viewModel = viewModel)
+                }
+
+                composable("admin_verification") {
+                    org.ukrida.voltmeter.ui.screen.admin.AdminVerificationScreen(viewModel = viewModel)
+                }
+
+                composable("admin_users") {
+                    AdminUserScreen(
+                        viewModel = viewModel,
+                        onNavigateToAddUser = {
+                            innerNavController.navigate("admin_register_user")
+                        }
+                    )
+                }
+
+                composable("admin_register_user") {
+                    org.ukrida.voltmeter.ui.screen.admin.RegisterScreen(
+                        viewModel = viewModel,
+                        onBack = {
                             innerNavController.popBackStack()
                         }
                     )
                 }
-            }
 
-            composable("history") {
-                HistoryScreen(viewModel = viewModel)
-            }
+                composable("admin_customers") {
+                    LaunchedEffect(Unit) {
+                        viewModel.loadAllCustomers()
+                    }
 
-            composable("profile") {
-                ProfileScreen(
-                    viewModel = viewModel,
-                    onLogout = {
-                        navController.navigate("login") {
-                            popUpTo(navController.graph.startDestinationId) {
-                                inclusive = true
-                            }
-                            launchSingleTop = true
+                    CustomerListScreen(
+                        viewModel = viewModel,
+                        onCustomerClick = { customer ->
+                            innerNavController.navigate("admin_customer_detail/${customer.customer_id}")
                         }
-                    }
-                )
-            }
-
-            // ================== ADMIN ROUTES ==================
-            composable("admin_dashboard") {
-                AdminHomeScreen(viewModel = viewModel)
-            }
-
-            composable("admin_verification") {
-                org.ukrida.voltmeter.ui.screen.admin.AdminVerificationScreen(viewModel = viewModel)
-            }
-
-            composable("admin_users") {
-                AdminUserScreen(
-                    viewModel = viewModel,
-                    onNavigateToAddUser = {
-                        innerNavController.navigate("admin_register_user")
-                    }
-                )
-            }
-
-            composable("admin_register_user") {
-                org.ukrida.voltmeter.ui.screen.admin.RegisterScreen(
-                    viewModel = viewModel,
-                    onBack = {
-                        innerNavController.popBackStack()
-                    }
-                )
-            }
-
-            composable("admin_customers") {
-                LaunchedEffect(Unit) {
-                    viewModel.loadAllCustomers()
+                    )
                 }
-                
-                // Reuse CustomerListScreen for Admin for now (Read-Only list, clickable to detail)
-                CustomerListScreen(
-                    viewModel = viewModel,
-                    onCustomerClick = { customer ->
-                        innerNavController.navigate("admin_customer_detail/${customer.customer_id}")
-                    }
-                )
-            }
 
-            composable("admin_customer_detail/{customerId}") { backStackEntry ->
-                val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
-                org.ukrida.voltmeter.ui.screen.admin.AdminCustomerDetailScreen(
-                    viewModel = viewModel,
-                    customerId = customerId,
-                    onBack = {
-                        innerNavController.popBackStack()
-                    }
-                )
-            }
-
-            composable("admin_profile") {
-                ProfileScreen(
-                    viewModel = viewModel,
-                    onLogout = {
-                        navController.navigate("login") {
-                            popUpTo(navController.graph.startDestinationId) {
-                                inclusive = true
-                            }
-                            launchSingleTop = true
+                composable("admin_customer_detail/{customerId}") { backStackEntry ->
+                    val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
+                    org.ukrida.voltmeter.ui.screen.admin.AdminCustomerDetailScreen(
+                        viewModel = viewModel,
+                        customerId = customerId,
+                        onBack = {
+                            innerNavController.popBackStack()
                         }
-                    }
-                )
+                    )
+                }
+
+                composable("admin_profile") {
+                    ProfileScreen(
+                        viewModel = viewModel,
+                        onLogout = {
+                            navController.navigate("login") {
+                                popUpTo(navController.graph.startDestinationId) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
             }
         }
     }
