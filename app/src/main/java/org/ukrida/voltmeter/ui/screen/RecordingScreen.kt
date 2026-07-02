@@ -149,7 +149,6 @@ fun RecordingScreen(
 
     LaunchedEffect(successMsg) {
         successMsg?.let {
-            viewModel.clearMessages()
             viewModel.markMeterSaved(meterIndex)
             onRecordingSuccess()
         }

@@ -111,11 +111,11 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.syncWorkOrders()
+        viewModel.syncWorkOrders(silent = true)
         viewModel.loadTodayRecords()
-        viewModel.loadPendingRecords(user?.user_id)
-        viewModel.loadVerifiedRecords(user?.user_id)
-        viewModel.loadRejectedRecords(user?.user_id)
+        viewModel.loadPendingRecords()
+        viewModel.loadVerifiedRecords()
+        viewModel.loadRejectedRecords()
     }
 
     // Compute per-meter completion count
@@ -123,12 +123,24 @@ fun HomeScreen(
         customers.sumOf { it.meters.size }
     }
 
-    val meterWorkItems = remember(customers) {
+    val allMeterItems = remember(customers) {
         customers.flatMap { customer ->
             customer.meters.mapIndexed { index, meter ->
                 Triple(customer, index, meter)
             }
         }
+    }
+
+    val completedMeters = remember(allMeterItems) {
+        allMeterItems.count { it.third.monthly_status != null && it.third.monthly_status != "REJECTED" }
+    }
+
+    val remainingMeters = remember(totalMeters, completedMeters) {
+        totalMeters - completedMeters
+    }
+
+    val meterWorkItems = remember(allMeterItems) {
+        allMeterItems.filter { it.third.monthly_status == null }
     }
 
     val cal = remember { Calendar.getInstance() }
@@ -164,14 +176,6 @@ fun HomeScreen(
         rejectedRecords.filter { record ->
             filterRecordByMonthYear(record, selectedMonth, selectedYear)
         }
-    }
-
-    val completedMeters = remember(filteredVerifiedRecords) {
-        filteredVerifiedRecords.size
-    }
-
-    val remainingMeters = remember(totalMeters, completedMeters) {
-        totalMeters - completedMeters
     }
 
     val deadlines = remember(customers) {
