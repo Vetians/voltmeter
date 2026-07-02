@@ -189,7 +189,6 @@ fun MainScreen(
                             customer = customer,
                             meterIndex = meterIndex,
                             onRecordingSuccess = {
-                                viewModel.syncWorkOrders()
                                 innerNavController.navigate("home") {
                                     popUpTo("home") { inclusive = true }
                                     launchSingleTop = true

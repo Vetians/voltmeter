@@ -379,7 +379,7 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     }
 
     // ============= WORK ORDERS =============
-    fun syncWorkOrders() {
+    fun syncWorkOrders(silent: Boolean = false) {
         val token = currentUser.value?.token ?: return
         viewModelScope.launch {
             try {
@@ -394,10 +394,16 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
                 val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.forLanguageTag("id"))
                 lastSync.value = dateFormat.format(Date())
 
-                successMessage.value = "Berhasil sync ${allCustomers.size} data pelanggan"
+                if (silent) {
+                    lastSync.value = dateFormat.format(Date())
+                } else {
+                    successMessage.value = "Berhasil sync ${allCustomers.size} data pelanggan"
+                }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Sync gagal", e)
-                errorMessage.value = "Gagal sync data: ${e.message}"
+                if (!silent) {
+                    errorMessage.value = "Gagal sync data: ${e.message}"
+                }
             } finally {
                 isLoading.value = false
             }
