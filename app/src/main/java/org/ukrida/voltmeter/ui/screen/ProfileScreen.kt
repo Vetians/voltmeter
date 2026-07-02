@@ -1,7 +1,10 @@
 package org.ukrida.voltmeter.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,9 +25,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,10 +34,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
@@ -53,47 +55,66 @@ fun ProfileScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Avatar
-        Surface(
-            modifier = Modifier.size(100.dp),
-            shape = CircleShape,
-            tonalElevation = 4.dp
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(
+                    brush = Brush.linearGradient(
+                        listOf(Color(0xFF0D47A1), Color(0xFF42A5F5))
+                    )
+                ),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = null,
-                modifier = Modifier
-                    .size(60.dp)
-                    .padding(20.dp)
+                modifier = Modifier.size(50.dp),
+                tint = Color.White
             )
         }
 
-        Text(
-            text = user?.name ?: "Petugas",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Surveyor / Cater",
+            text = user?.name ?: "Petugas",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF0D47A1)
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = if (user?.role == "admin") "Administrator" else "Surveyor",
             color = Color.Gray,
             fontSize = 14.sp
         )
 
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = "ID: ${user?.user_id ?: "-"}",
+            color = Color.Gray,
+            fontSize = 12.sp
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 ProfileMenuItem(
-                    icon = Icons.Default.Info,
-                    title = "Tentang Aplikasi",
+                    icon = Icons.Default.Bolt,
+                    title = "Versi Aplikasi",
                     subtitle = "VoltMeter v1.0"
                 )
             }
@@ -103,19 +124,20 @@ fun ProfileScreen(
 
         Button(
             onClick = { showLogoutDialog = true },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFF44336)
             ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.Logout, null)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Logout")
+            shape = RoundedCornerShape(16.dp)
+            ) {
+            Icon(Icons.AutoMirrored.Filled.Logout, null, tint = Color.White)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Logout", fontWeight = FontWeight.Bold)
         }
     }
 
-    // Logout Confirmation
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -128,13 +150,17 @@ fun ProfileScreen(
                         viewModel.logout()
                         onLogout()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Ya, Logout")
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showLogoutDialog = false }) {
+                OutlinedButton(
+                    onClick = { showLogoutDialog = false },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
                     Text("Batal")
                 }
             }
@@ -148,7 +174,7 @@ fun ProfileMenuItem(
     title: String,
     subtitle: String
 ) {
-    androidx.compose.foundation.layout.Row(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
@@ -157,12 +183,9 @@ fun ProfileMenuItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFF1565C0)
+            tint = Color(0xFF0D47A1)
         )
-        androidx.compose.foundation.layout.Spacer(
-            modifier = Modifier
-                .width(12.dp)
-        )
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, fontWeight = FontWeight.Medium)
             Text(text = subtitle, color = Color.Gray, fontSize = 12.sp)

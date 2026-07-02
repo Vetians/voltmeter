@@ -56,6 +56,7 @@ fun CustomerListScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // tambahkan ini
         floatingActionButton = {
             if (isAdmin) {
                 FloatingActionButton(
@@ -66,13 +67,15 @@ fun CustomerListScreen(
                     Icon(Icons.Default.Add, contentDescription = "Tambah Pelanggan")
                 }
             }
-        }
+        },
+        containerColor = Color.Transparent
     ) { paddingValues ->
         if (customers.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
+                    .padding(paddingValues)
+                    .padding(top = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -103,12 +106,13 @@ fun CustomerListScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .padding(top = 8.dp),
             ) {
                 if (isAdmin) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val filters = listOf(
@@ -156,7 +160,7 @@ fun CustomerListScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(
-                        top = if (isAdmin) 0.dp else 16.dp,
+                        top = 4.dp,
                         bottom = 80.dp
                     )
                 ) {
