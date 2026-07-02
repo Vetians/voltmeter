@@ -437,6 +437,19 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
         notes.value = ""
     }
 
+    // ============= RECORDING RULES =============
+    fun canRecord(customer: Customer): Boolean {
+        return customer.monthly_status == null || customer.monthly_status == "REJECTED"
+    }
+
+    fun getRecordBlockReason(customer: Customer): String? {
+        return when (customer.monthly_status) {
+            "VERIFIED" -> "Pencatatan bulan ini sudah terverifikasi. Tunggu bulan berikutnya."
+            "PENDING" -> "Pencatatan bulan ini sedang menunggu verifikasi admin."
+            else -> null
+        }
+    }
+
     // ============= CUSTOMER =============
     fun selectCustomer(customer: Customer) {
         selectedCustomer.value = customer

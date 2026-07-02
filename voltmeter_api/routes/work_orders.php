@@ -54,6 +54,16 @@ foreach ($rows as $row) {
             'last_reading' => (float) $m['last_reading']
         ];
     }
+
+    // Get monthly verification status for this customer (current month)
+    $stmtStatus = $db->prepare("
+        SELECT verification_status FROM meter_records 
+        WHERE customer_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
+        ORDER BY created_at DESC LIMIT 1
+    ");
+    $stmtStatus->execute([$row['customer_id'], $currentMonth, $currentYear]);
+    $statusRow = $stmtStatus->fetch();
+    $monthlyStatus = $statusRow ? $statusRow['verification_status'] : null;
     
     $workOrders[$woId]['customers'][] = [
         'customer_id' => $row['customer_id'],
@@ -65,7 +75,8 @@ foreach ($rows as $row) {
         'last_meter_reading' => (float) $row['last_meter_reading'],
         'meters' => $metersData,
         'latitude' => (float) $row['latitude'],
-        'longitude' => (float) $row['longitude']
+        'longitude' => (float) $row['longitude'],
+        'monthly_status' => $monthlyStatus
     ];
 }
 

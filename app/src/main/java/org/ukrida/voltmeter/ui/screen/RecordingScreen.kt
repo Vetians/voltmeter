@@ -84,6 +84,9 @@ fun RecordingScreen(
     val notes = viewModel.notes.value
     val currentMeterIndex = viewModel.currentMeterIndex.value
 
+    val isBlocked = customer.monthly_status == "VERIFIED" || customer.monthly_status == "PENDING"
+    val blockReason = viewModel.getRecordBlockReason(customer)
+
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
     var currentFile by remember { mutableStateOf<File?>(null) }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
@@ -219,6 +222,33 @@ fun RecordingScreen(
             }
         }
 
+        if (isBlocked && blockReason != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (customer.monthly_status == "VERIFIED") Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (customer.monthly_status == "VERIFIED") Icons.Default.CheckCircle else Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = if (customer.monthly_status == "VERIFIED") Color(0xFF4CAF50) else Color(0xFFFF9800)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = blockReason,
+                        fontSize = 13.sp,
+                        color = Color(0xFF795548)
+                    )
+                }
+            }
+        }
+
         // Meter Input
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -313,6 +343,25 @@ fun RecordingScreen(
                                 color = Color(0xFFF44336),
                                 fontSize = 12.sp
                             )
+                        }
+                    }
+                    if (reading != null) {
+                        val usage = reading - prevReading
+                        val maxKwh = (customer.power_va * 24 * 30) / 1000
+                        if (usage > maxKwh) {
+                            Row(
+                                modifier = Modifier.padding(top = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Warning, null, tint = Color(0xFFFF9800), modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    "Pemakaian ${String.format("%.0f", usage)} kWh melebihi batas maksimal $maxKwh kWh/bulan (${customer.power_va} VA). Kemungkinan typo!",
+                                    color = Color(0xFFFF9800),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
@@ -455,7 +504,7 @@ fun RecordingScreen(
                 onClick = { viewModel.submitMeterRecord(latitude = currentLat, longitude = currentLng) },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
-                enabled = photoUriString != null && !isLoading && hasLocationPermission
+                enabled = !isBlocked && photoUriString != null && !isLoading && hasLocationPermission
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
