@@ -135,7 +135,18 @@ fun MainScreen(
                     HomeScreen(
                         viewModel = viewModel,
                         onCustomerClick = { customer ->
-                            innerNavController.navigate("recording")
+                            viewModel.selectCustomer(customer)
+                            if (customer.meters.size > 1) {
+                                innerNavController.navigate("meter_selection")
+                            } else {
+                                viewModel.selectMeter(0)
+                                innerNavController.navigate("recording/0")
+                            }
+                        },
+                        onMeterClick = { customer, meterIndex ->
+                            viewModel.selectCustomer(customer)
+                            viewModel.selectMeter(meterIndex)
+                            innerNavController.navigate("recording/$meterIndex")
                         }
                     )
                 }
@@ -144,18 +155,45 @@ fun MainScreen(
                     CustomerListScreen(
                         viewModel = viewModel,
                         onCustomerClick = { customer ->
-                            innerNavController.navigate("recording")
+                            viewModel.selectCustomer(customer)
+                            if (customer.meters.size > 1) {
+                                innerNavController.navigate("meter_selection")
+                            } else {
+                                viewModel.selectMeter(0)
+                                innerNavController.navigate("recording/0")
+                            }
                         }
                     )
                 }
 
-                composable("recording") {
+                composable("meter_selection") {
+                    selectedCustomer?.let { customer ->
+                        MeterSelectionScreen(
+                            viewModel = viewModel,
+                            customer = customer,
+                            onMeterSelected = { meterIndex ->
+                                innerNavController.navigate("recording/$meterIndex")
+                            },
+                            onBack = {
+                                innerNavController.popBackStack()
+                            }
+                        )
+                    }
+                }
+
+                composable("recording/{meterIndex}") { backStackEntry ->
+                    val meterIndex = backStackEntry.arguments?.getString("meterIndex")?.toIntOrNull() ?: 0
                     selectedCustomer?.let { customer ->
                         RecordingScreen(
                             viewModel = viewModel,
                             customer = customer,
+                            meterIndex = meterIndex,
                             onRecordingSuccess = {
-                                innerNavController.popBackStack()
+                                viewModel.syncWorkOrders()
+                                innerNavController.navigate("home") {
+                                    popUpTo("home") { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
                         )
                     }
