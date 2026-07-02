@@ -438,16 +438,36 @@ class VoltMeterViewModel(private val repo: VoltMeterRepository) : ViewModel() {
     }
 
     // ============= RECORDING RULES =============
-    fun canRecord(customer: Customer): Boolean {
-        return customer.monthly_status == null || customer.monthly_status == "REJECTED"
+    fun canRecord(customer: Customer, meterIndex: Int = 0): Boolean {
+        val meter = customer.meters.getOrNull(meterIndex)
+        val meterStatus = meter?.monthly_status
+        return meterStatus == null || meterStatus == "REJECTED"
     }
 
-    fun getRecordBlockReason(customer: Customer): String? {
-        return when (customer.monthly_status) {
-            "VERIFIED" -> "Pencatatan bulan ini sudah terverifikasi. Tunggu bulan berikutnya."
-            "PENDING" -> "Pencatatan bulan ini sedang menunggu verifikasi admin."
+    fun canRecordAnyMeter(customer: Customer): Boolean {
+        return customer.meters.any { it.monthly_status == null || it.monthly_status == "REJECTED" }
+    }
+
+    fun getRecordBlockReason(customer: Customer, meterIndex: Int = 0): String? {
+        val meter = customer.meters.getOrNull(meterIndex)
+        val meterStatus = meter?.monthly_status
+        return when (meterStatus) {
+            "VERIFIED" -> "Pencatatan meter ${meter?.meter_number ?: ""} bulan ini sudah terverifikasi."
+            "PENDING" -> "Pencatatan meter ${meter?.meter_number ?: ""} bulan ini sedang menunggu verifikasi."
             else -> null
         }
+    }
+
+    fun getCustomerBlockReason(customer: Customer): String? {
+        val blockedMeters = customer.meters.filter { it.monthly_status == "VERIFIED" || it.monthly_status == "PENDING" }
+        if (blockedMeters.isEmpty()) return null
+        if (blockedMeters.size == customer.meters.size) {
+            val allVerified = blockedMeters.all { it.monthly_status == "VERIFIED" }
+            return if (allVerified) "Semua meteran sudah terverifikasi bulan ini."
+            else "Semua meteran sudah memiliki pencatatan bulan ini (pending/terverifikasi)."
+        }
+        val names = blockedMeters.joinToString(", ") { it.meter_number }
+        return "Meteran $names sudah tercatat bulan ini."
     }
 
     // ============= CUSTOMER =============

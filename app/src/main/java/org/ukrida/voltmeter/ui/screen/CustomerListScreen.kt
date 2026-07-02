@@ -172,7 +172,7 @@ fun CustomerListScreen(
                                 viewModel.selectCustomer(customer)
                                 onCustomerClick(customer)
                             } else {
-                                val canRecord = viewModel.canRecord(customer)
+                                val canRecord = viewModel.canRecordAnyMeter(customer)
                                 if (canRecord) {
                                     viewModel.selectCustomer(customer)
                                     onCustomerClick(customer)
@@ -238,7 +238,7 @@ fun CustomerListScreen(
     }
 
     blockedCustomer?.let { customer ->
-        val reason = viewModel.getRecordBlockReason(customer)
+        val reason = viewModel.getCustomerBlockReason(customer)
         AlertDialog(
             onDismissRequest = { blockedCustomer = null },
             title = { Text("Tidak Bisa Input") },
@@ -365,8 +365,18 @@ fun AddCustomerDialog(
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var powerVa by remember { mutableStateOf("") }
-    var tariff by remember { mutableStateOf("") }
     var meterNumber by remember { mutableStateOf("") }
+
+    val autoTariff = remember(powerVa) {
+        val va = powerVa.toIntOrNull() ?: 0
+        when {
+            va <= 0 -> ""
+            va <= 900 -> "R1"
+            va <= 2200 -> "R1"
+            va <= 5500 -> "R2"
+            else -> "R3"
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -420,11 +430,16 @@ fun AddCustomerDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     OutlinedTextField(
-                        value = tariff,
-                        onValueChange = { tariff = it },
-                        label = { Text("Tarif (R1/R2)") },
+                        value = autoTariff,
+                        onValueChange = {},
+                        label = { Text("Golongan") },
                         modifier = Modifier.weight(1f),
-                        singleLine = true
+                        readOnly = true,
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF1565C0),
+                            unfocusedTextColor = Color(0xFF1565C0)
+                        )
                     )
                 }
 
@@ -453,13 +468,13 @@ fun AddCustomerDialog(
                                 name = name,
                                 address = address,
                                 power_va = powerVa.toIntOrNull() ?: 0,
-                                tariff = tariff,
+                                tariff = autoTariff,
                                 meters = listOf(Meter(meter_number = meterNumber, last_reading = 0.0))
                             )
                             onSave(newCustomer)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
-                        enabled = customerId.isNotBlank() && name.isNotBlank() && meterNumber.isNotBlank()
+                        enabled = customerId.isNotBlank() && name.isNotBlank() && meterNumber.isNotBlank() && powerVa.isNotBlank()
                     ) {
                         Text("Simpan")
                     }

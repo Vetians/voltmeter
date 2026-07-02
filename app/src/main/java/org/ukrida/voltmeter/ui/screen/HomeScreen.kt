@@ -86,7 +86,8 @@ private fun filterRecordByMonthYear(record: MeterRecord, month: Int?, year: Int?
 @Composable
 fun HomeScreen(
     viewModel: VoltMeterViewModel,
-    onCustomerClick: (Customer) -> Unit = {}
+    onCustomerClick: (Customer) -> Unit = {},
+    onMeterClick: (Customer, Int) -> Unit = { cust, idx -> onCustomerClick(cust) }
 ) {
     val user = viewModel.currentUser.value
     val customers = viewModel.customers.value
@@ -120,6 +121,14 @@ fun HomeScreen(
     // Compute per-meter completion count
     val totalMeters = remember(customers) {
         customers.sumOf { it.meters.size }
+    }
+
+    val meterWorkItems = remember(customers) {
+        customers.flatMap { customer ->
+            customer.meters.mapIndexed { index, meter ->
+                Triple(customer, index, meter)
+            }
+        }
     }
 
     val cal = remember { Calendar.getInstance() }
@@ -159,6 +168,10 @@ fun HomeScreen(
 
     val completedMeters = remember(filteredVerifiedRecords) {
         filteredVerifiedRecords.size
+    }
+
+    val remainingMeters = remember(totalMeters, completedMeters) {
+        totalMeters - completedMeters
     }
 
     val deadlines = remember(customers) {
@@ -214,7 +227,7 @@ fun HomeScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             StatCard(
                 modifier = Modifier.weight(1f),
@@ -229,6 +242,13 @@ fun HomeScreen(
                 value = "$completedMeters",
                 label = "Selesai",
                 color = Color(0xFF4CAF50)
+            )
+            StatCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Schedule,
+                value = "$remainingMeters",
+                label = "Belum Dicatat",
+                color = Color(0xFFFF9800)
             )
         }
 
@@ -351,27 +371,30 @@ fun HomeScreen(
         DropdownSection(
             title = "Daftar Kerja",
             icon = Icons.AutoMirrored.Filled.List,
-            count = customers.size,
+            count = meterWorkItems.size,
             expanded = expandedSection == "kerja",
             onToggle = { expandedSection = if (expandedSection == "kerja") null else "kerja" }
         ) {
-            if (customers.isEmpty()) {
+            if (meterWorkItems.isEmpty()) {
                 Text(
                     text = "Tidak ada data pekerjaan",
                     color = Color.Gray,
                     modifier = Modifier.padding(8.dp)
                 )
             } else {
-                customers.forEach { customer ->
-                    CustomerWorkCard(
-                        name = customer.name,
+                meterWorkItems.forEach { (customer, meterIndex, meter) ->
+                    MeterWorkCard(
+                        customerName = customer.name,
+                        meterNumber = meter.meter_number,
                         address = customer.address,
                         deadline = deadlines[customer.customer_id] ?: "-",
-                        monthlyStatus = customer.monthly_status,
+                        monthlyStatus = meter.monthly_status,
+                        isBlocked = meter.monthly_status == "VERIFIED" || meter.monthly_status == "PENDING",
                         onClick = {
-                            if (viewModel.canRecord(customer)) {
+                            if (viewModel.canRecord(customer, meterIndex)) {
                                 viewModel.selectCustomer(customer)
-                                onCustomerClick(customer)
+                                viewModel.selectMeter(meterIndex)
+                                onMeterClick(customer, meterIndex)
                             } else {
                                 blockedCustomer = customer
                             }
@@ -401,8 +424,10 @@ fun HomeScreen(
                         onClick = {
                             val customer = customers.find { it.customer_id == record.customer_id }
                             if (customer != null) {
+                                val meterIdx = customer.meters.indexOfFirst { it.meter_number == record.meter_number }.coerceAtLeast(0)
                                 viewModel.selectCustomer(customer)
-                                onCustomerClick(customer)
+                                viewModel.selectMeter(meterIdx)
+                                onMeterClick(customer, meterIdx)
                             }
                         }
                     )
@@ -455,8 +480,10 @@ fun HomeScreen(
                                     address = record.customer_address,
                                     meters = listOf(Meter(record.meter_number, record.previous_reading))
                                 )
+                            val meterIdx = customer.meters.indexOfFirst { it.meter_number == record.meter_number }.coerceAtLeast(0)
                             viewModel.selectCustomer(customer)
-                            onCustomerClick(customer)
+                            viewModel.selectMeter(meterIdx)
+                            onMeterClick(customer, meterIdx)
                         }
                     )
                 }
@@ -490,7 +517,7 @@ fun HomeScreen(
     }
 
     blockedCustomer?.let { customer ->
-        val reason = viewModel.getRecordBlockReason(customer)
+        val reason = viewModel.getCustomerBlockReason(customer)
         AlertDialog(
             onDismissRequest = { blockedCustomer = null },
             title = { Text("Tidak Bisa Input") },
@@ -569,11 +596,13 @@ private fun DropdownSection(
 }
 
 @Composable
-private fun CustomerWorkCard(
-    name: String,
+private fun MeterWorkCard(
+    customerName: String,
+    meterNumber: String,
     address: String,
     deadline: String,
     monthlyStatus: String? = null,
+    isBlocked: Boolean = false,
     onClick: () -> Unit
 ) {
     val statusColor = when (monthlyStatus) {
@@ -593,17 +622,35 @@ private fun CustomerWorkCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable { onClick() },
+            .clickable(enabled = !isBlocked) { onClick() },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF5F5F5)
+            containerColor = if (isBlocked) Color(0xFFFFF3E0) else Color(0xFFF5F5F5)
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = customerName,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                if (isBlocked && statusLabel != null && statusColor != null) {
+                    Text(
+                        text = statusLabel,
+                        fontSize = 10.sp,
+                        color = statusColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = name,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                text = "Meter: $meterNumber",
+                fontSize = 13.sp,
+                color = Color(0xFF1565C0),
+                fontWeight = FontWeight.Medium
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -620,7 +667,7 @@ private fun CustomerWorkCard(
                 color = Color(0xFFFF9800),
                 fontWeight = FontWeight.Medium
             )
-            if (statusLabel != null && statusColor != null) {
+            if (!isBlocked && statusLabel != null && statusColor != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = statusLabel,
