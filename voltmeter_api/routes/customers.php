@@ -31,9 +31,16 @@ if ($method === 'POST') {
         if ($wo) {
             $workOrderId = $wo['work_order_id'];
         } else {
-            http_response_code(400);
-            echo json_encode(["message" => "Gagal: Tidak ada Work Order aktif bulan ini."]);
-            exit();
+            $stmtWoFallback = $db->prepare("SELECT work_order_id FROM work_orders WHERE status = 'active' ORDER BY year DESC, month DESC LIMIT 1");
+            $stmtWoFallback->execute();
+            $woFallback = $stmtWoFallback->fetch();
+            if ($woFallback) {
+                $workOrderId = $woFallback['work_order_id'];
+            } else {
+                http_response_code(400);
+                echo json_encode(["message" => "Gagal: Tidak ada Work Order aktif untuk menampung pelanggan."]);
+                exit();
+            }
         }
     }
 
