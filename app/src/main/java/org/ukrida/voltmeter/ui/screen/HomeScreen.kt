@@ -94,6 +94,7 @@ fun HomeScreen(
     val pendingRecords = viewModel.pendingRecords.value
     val verifiedRecords = viewModel.verifiedRecords.value
     val rejectedRecords = viewModel.rejectedRecords.value
+    val isOnline = viewModel.isOnline.value
 
     var expandedSection by remember { mutableStateOf<String?>(null) }
     var blockedCustomer by remember { mutableStateOf<Customer?>(null) }
@@ -111,6 +112,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         viewModel.syncWorkOrders()
+        viewModel.syncUnsyncedRecords()
         viewModel.loadTodayRecords()
         viewModel.loadPendingRecords(user?.user_id)
         viewModel.loadVerifiedRecords(user?.user_id)
@@ -186,6 +188,30 @@ fun HomeScreen(
             color = Color.Gray,
             fontSize = 14.sp
         )
+
+        if (!isOnline) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Mode Offline - Data disimpan lokal",
+                        fontSize = 13.sp,
+                        color = Color(0xFF795548)
+                    )
+                }
+            }
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),

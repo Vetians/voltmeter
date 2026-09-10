@@ -20,10 +20,11 @@ import org.ukrida.voltmeter.viewmodel.VoltMeterViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Injection.init(this)
         enableEdgeToEdge()
         setContent {
             val navController = rememberNavController()
-            val voltMeterViewModel = remember { VoltMeterViewModel(Injection.voltMeterRepo) }
+            val voltMeterViewModel = remember { VoltMeterViewModel(Injection.voltMeterRepo, Injection.localRepo, this) }
             var isLoggedIn by remember { mutableStateOf(false) }
             var role by remember { mutableStateOf("") }
 
