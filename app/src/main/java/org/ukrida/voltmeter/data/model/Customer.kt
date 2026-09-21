@@ -16,7 +16,8 @@ data class Customer(
 
 data class Meter(
     val meter_number: String = "",
-    val last_reading: Double = 0.0
+    val last_reading: Double = 0.0,
+    val monthly_status: String? = null
 )
 
 data class WorkOrderResponse(

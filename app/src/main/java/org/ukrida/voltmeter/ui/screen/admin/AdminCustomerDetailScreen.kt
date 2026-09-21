@@ -56,6 +56,7 @@ fun AdminCustomerDetailScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0), // tambahkan ini
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text("Detail Pelanggan") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

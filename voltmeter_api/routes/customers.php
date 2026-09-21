@@ -25,15 +25,22 @@ if ($method === 'POST') {
     if (empty($workOrderId)) {
         $currentMonth = (int) date('m');
         $currentYear = (int) date('Y');
-        $stmtWo = $db->prepare("SELECT work_order_id FROM work_orders WHERE month = ? AND year = ? LIMIT 1");
+        $stmtWo = $db->prepare("SELECT work_order_id FROM work_orders WHERE month = ? AND year = ? AND status = 'active' LIMIT 1");
         $stmtWo->execute([$currentMonth, $currentYear]);
         $wo = $stmtWo->fetch();
         if ($wo) {
             $workOrderId = $wo['work_order_id'];
         } else {
-            http_response_code(400);
-            echo json_encode(["message" => "Gagal: Tidak ada Work Order aktif bulan ini."]);
-            exit();
+            $stmtWoFallback = $db->prepare("SELECT work_order_id FROM work_orders WHERE status = 'active' ORDER BY year DESC, month DESC LIMIT 1");
+            $stmtWoFallback->execute();
+            $woFallback = $stmtWoFallback->fetch();
+            if ($woFallback) {
+                $workOrderId = $woFallback['work_order_id'];
+            } else {
+                http_response_code(400);
+                echo json_encode(["message" => "Gagal: Tidak ada Work Order aktif."]);
+                exit();
+            }
         }
     }
 
@@ -149,23 +156,34 @@ if ($method === 'POST') {
 
         $metersData = [];
         foreach ($meters as $m) {
+            $stmtMeterStatus = $db->prepare("
+                SELECT verification_status FROM meter_records 
+                WHERE customer_id = ? AND meter_number = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
+                ORDER BY created_at DESC LIMIT 1
+            ");
+            $stmtMeterStatus->execute([$customer['customer_id'], $m['meter_number'], $currentMonth, $currentYear]);
+            $meterStatusRow = $stmtMeterStatus->fetch();
+            $meterMonthlyStatus = $meterStatusRow ? $meterStatusRow['verification_status'] : null;
+
             $metersData[] = [
                 'meter_number' => $m['meter_number'],
-                'last_reading' => (float) $m['last_reading']
+                'last_reading' => (float) $m['last_reading'],
+                'monthly_status' => $meterMonthlyStatus
             ];
         }
 
-        // Get monthly verification status for this customer
-        $currentMonth = (int) date('m');
-        $currentYear = (int) date('Y');
-        $stmtStatus = $db->prepare("
-            SELECT verification_status FROM meter_records 
-            WHERE customer_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
-            ORDER BY created_at DESC LIMIT 1
-        ");
-        $stmtStatus->execute([$customer['customer_id'], $currentMonth, $currentYear]);
-        $statusRow = $stmtStatus->fetch();
-        $monthlyStatus = $statusRow ? $statusRow['verification_status'] : null;
+        // Compute overall customer status from meters
+        $customerMonthlyStatus = null;
+        foreach ($metersData as $md) {
+            if ($md['monthly_status'] === 'PENDING') {
+                $customerMonthlyStatus = 'PENDING';
+                break;
+            } elseif ($md['monthly_status'] === 'VERIFIED') {
+                $customerMonthlyStatus = 'VERIFIED';
+            } elseif ($md['monthly_status'] === 'REJECTED' && $customerMonthlyStatus !== 'VERIFIED') {
+                $customerMonthlyStatus = 'REJECTED';
+            }
+        }
 
         $result[] = [
             'customer_id' => $customer['customer_id'],
@@ -178,7 +196,7 @@ if ($method === 'POST') {
             'meters' => $metersData,
             'latitude' => (float) $customer['latitude'],
             'longitude' => (float) $customer['longitude'],
-            'monthly_status' => $monthlyStatus
+            'monthly_status' => $customerMonthlyStatus
         ];
     }
     echo json_encode($result);

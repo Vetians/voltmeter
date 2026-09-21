@@ -49,21 +49,35 @@ foreach ($rows as $row) {
     
     $metersData = [];
     foreach ($meters as $m) {
+        // Get monthly verification status for THIS specific meter
+        $stmtMeterStatus = $db->prepare("
+            SELECT verification_status FROM meter_records 
+            WHERE customer_id = ? AND meter_number = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
+            ORDER BY created_at DESC LIMIT 1
+        ");
+        $stmtMeterStatus->execute([$row['customer_id'], $m['meter_number'], $currentMonth, $currentYear]);
+        $meterStatusRow = $stmtMeterStatus->fetch();
+        $meterMonthlyStatus = $meterStatusRow ? $meterStatusRow['verification_status'] : null;
+
         $metersData[] = [
             'meter_number' => $m['meter_number'],
-            'last_reading' => (float) $m['last_reading']
+            'last_reading' => (float) $m['last_reading'],
+            'monthly_status' => $meterMonthlyStatus
         ];
     }
 
-    // Get monthly verification status for this customer (current month)
-    $stmtStatus = $db->prepare("
-        SELECT verification_status FROM meter_records 
-        WHERE customer_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?
-        ORDER BY created_at DESC LIMIT 1
-    ");
-    $stmtStatus->execute([$row['customer_id'], $currentMonth, $currentYear]);
-    $statusRow = $stmtStatus->fetch();
-    $monthlyStatus = $statusRow ? $statusRow['verification_status'] : null;
+    // Compute overall customer status from meters
+    $customerMonthlyStatus = null;
+    foreach ($metersData as $md) {
+        if ($md['monthly_status'] === 'PENDING') {
+            $customerMonthlyStatus = 'PENDING';
+            break;
+        } elseif ($md['monthly_status'] === 'VERIFIED') {
+            $customerMonthlyStatus = 'VERIFIED';
+        } elseif ($md['monthly_status'] === 'REJECTED' && $customerMonthlyStatus !== 'VERIFIED') {
+            $customerMonthlyStatus = 'REJECTED';
+        }
+    }
     
     $workOrders[$woId]['customers'][] = [
         'customer_id' => $row['customer_id'],
@@ -76,7 +90,7 @@ foreach ($rows as $row) {
         'meters' => $metersData,
         'latitude' => (float) $row['latitude'],
         'longitude' => (float) $row['longitude'],
-        'monthly_status' => $monthlyStatus
+        'monthly_status' => $customerMonthlyStatus
     ];
 }
 

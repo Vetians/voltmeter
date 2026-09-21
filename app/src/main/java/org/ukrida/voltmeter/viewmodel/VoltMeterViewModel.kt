@@ -575,7 +575,7 @@ class VoltMeterViewModel(
     }
 
     // ============= WORK ORDERS =============
-    fun syncWorkOrders() {
+    fun syncWorkOrders(silent: Boolean = false) {
         viewModelScope.launch {
             try {
                 isLoading.value = true
@@ -583,27 +583,38 @@ class VoltMeterViewModel(
 
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: return@launch
-                    val workOrders = repo.getWorkOrders(token)
-                    val allCustomers = mutableListOf<Customer>()
-                    workOrders.forEach { wo ->
-                        allCustomers.addAll(wo.customers)
+                    val allCustomers = withContext(Dispatchers.IO) {
+                        val workOrders = repo.getWorkOrders(token)
+                        val list = mutableListOf<Customer>()
+                        workOrders.forEach { wo ->
+                            list.addAll(wo.customers)
+                        }
+                        localRepo.saveCustomers(list)
+                        list
                     }
 
-                    // Simpan ke local database
-                    localRepo.saveCustomers(allCustomers)
                     customers.value = allCustomers
 
                     val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.forLanguageTag("id"))
                     lastSync.value = dateFormat.format(Date())
 
-                    successMessage.value = "Berhasil sync ${allCustomers.size} data pelanggan"
+                    if (!silent) {
+                        successMessage.value = "Berhasil sync ${allCustomers.size} data pelanggan"
+                    }
                 } else {
-                    errorMessage.value = "Tidak ada koneksi internet. Menampilkan data lokal."
+                    if (!silent) {
+                        errorMessage.value = "Tidak ada koneksi internet. Menampilkan data lokal."
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Sync gagal", e)
                 isOnline.value = false
-                errorMessage.value = "Gagal sync data: ${e.message}"
+                if (!silent) {
+                    errorMessage.value = "Gagal sync data: ${e.message}"
+                }
+            } finally {
+                isLoading.value = false
+            }
             } finally {
                 isLoading.value = false
             }
@@ -696,16 +707,36 @@ class VoltMeterViewModel(
     }
 
     // ============= RECORDING RULES =============
-    fun canRecord(customer: Customer): Boolean {
-        return customer.monthly_status == null || customer.monthly_status == "REJECTED"
+    fun canRecord(customer: Customer, meterIndex: Int = 0): Boolean {
+        val meter = customer.meters.getOrNull(meterIndex)
+        val meterStatus = meter?.monthly_status
+        return meterStatus == null || meterStatus == "REJECTED"
     }
 
-    fun getRecordBlockReason(customer: Customer): String? {
-        return when (customer.monthly_status) {
-            "VERIFIED" -> "Pencatatan bulan ini sudah terverifikasi. Tunggu bulan berikutnya."
-            "PENDING" -> "Pencatatan bulan ini sedang menunggu verifikasi admin."
+    fun canRecordAnyMeter(customer: Customer): Boolean {
+        return customer.meters.any { it.monthly_status == null || it.monthly_status == "REJECTED" }
+    }
+
+    fun getRecordBlockReason(customer: Customer, meterIndex: Int = 0): String? {
+        val meter = customer.meters.getOrNull(meterIndex)
+        val meterStatus = meter?.monthly_status
+        return when (meterStatus) {
+            "VERIFIED" -> "Pencatatan meter ${meter?.meter_number ?: ""} bulan ini sudah terverifikasi."
+            "PENDING" -> "Pencatatan meter ${meter?.meter_number ?: ""} bulan ini sedang menunggu verifikasi."
             else -> null
         }
+    }
+
+    fun getCustomerBlockReason(customer: Customer): String? {
+        val blockedMeters = customer.meters.filter { it.monthly_status == "VERIFIED" || it.monthly_status == "PENDING" }
+        if (blockedMeters.isEmpty()) return null
+        if (blockedMeters.size == customer.meters.size) {
+            val allVerified = blockedMeters.all { it.monthly_status == "VERIFIED" }
+            return if (allVerified) "Semua meteran sudah terverifikasi bulan ini."
+            else "Semua meteran sudah memiliki pencatatan bulan ini (pending/terverifikasi)."
+        }
+        val names = blockedMeters.joinToString(", ") { it.meter_number }
+        return "Meteran $names sudah tercatat bulan ini."
     }
 
     // ============= CUSTOMER =============
