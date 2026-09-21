@@ -178,7 +178,7 @@ class LocalRepository(context: Context) {
             tariff = tariff,
             last_month_usage = last_month_usage,
             last_meter_reading = last_meter_reading,
-            meters = meters.map { Meter(it.meter_number, it.last_reading) },
+            meters = meters.map { Meter(it.meter_number, it.last_reading, it.monthly_status) },
             latitude = latitude,
             longitude = longitude,
             monthly_status = monthly_status
@@ -194,7 +194,7 @@ class LocalRepository(context: Context) {
             tariff = tariff,
             last_month_usage = last_month_usage,
             last_meter_reading = last_meter_reading,
-            meters = meters.map { MeterDto(it.meter_number, it.last_reading) },
+            meters = meters.map { MeterDto(it.meter_number, it.last_reading, it.monthly_status) },
             latitude = latitude,
             longitude = longitude,
             monthly_status = monthly_status

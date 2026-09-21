@@ -133,8 +133,8 @@ fun HomeScreen(
         }
     }
 
-    val completedMeters = remember(allMeterItems) {
-        allMeterItems.count { it.third.monthly_status != null && it.third.monthly_status != "REJECTED" }
+    val completedMeters = remember(verifiedRecords) {
+        verifiedRecords.size
     }
 
     val remainingMeters = remember(totalMeters, completedMeters) {

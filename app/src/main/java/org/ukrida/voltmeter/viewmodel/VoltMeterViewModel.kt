@@ -5,8 +5,10 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -612,9 +614,6 @@ class VoltMeterViewModel(
                 if (!silent) {
                     errorMessage.value = "Gagal sync data: ${e.message}"
                 }
-            } finally {
-                isLoading.value = false
-            }
             } finally {
                 isLoading.value = false
             }

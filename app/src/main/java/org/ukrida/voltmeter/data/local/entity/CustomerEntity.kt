@@ -25,5 +25,6 @@ data class CustomerEntity(
 
 data class MeterDto(
     val meter_number: String,
-    val last_reading: Double
+    val last_reading: Double,
+    val monthly_status: String? = null
 )
