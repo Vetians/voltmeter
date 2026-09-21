@@ -143,6 +143,14 @@ fun LoginScreen(
                 color = Color.White.copy(alpha = 0.8f)
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Internal Testing",
+                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.6f)
+            )
+
             Spacer(modifier = Modifier.height(48.dp))
 
             OutlinedTextField(
@@ -249,6 +257,15 @@ fun LoginScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Login menggunakan akun dari server",
+                fontSize = 11.sp,
+                color = Color.White.copy(alpha = 0.5f),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

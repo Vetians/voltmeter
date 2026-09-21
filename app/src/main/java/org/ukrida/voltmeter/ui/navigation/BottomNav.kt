@@ -11,10 +11,12 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 
 sealed class Screen(val route: String, val label: String) {
     object Home : Screen(route = "home", label = "Beranda")
@@ -27,12 +29,17 @@ sealed class Screen(val route: String, val label: String) {
 fun BottomNav(navController: NavHostController) {
     val items = listOf(Screen.Home, Screen.Customer, Screen.History, Screen.Profile)
 
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
     NavigationBar(
         containerColor = Color.White
     ) {
         items.forEach { screen ->
+            val isSelected = currentRoute == screen.route
+
             NavigationBarItem(
-                selected = false,
+                selected = isSelected,
                 onClick = {
                     navController.navigate(screen.route) {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
@@ -52,7 +59,7 @@ fun BottomNav(navController: NavHostController) {
                     Text(
                         screen.label,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(

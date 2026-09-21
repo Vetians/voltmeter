@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hapus Akun - VoltMeter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0D47A1, #1976D2);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo h1 {
+            color: #0D47A1;
+            font-size: 28px;
+        }
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+        .warning {
+            background: #FFF3E0;
+            border-left: 4px solid #FF9800;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+        }
+        .warning h3 {
+            color: #E65100;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .warning ul {
+            color: #795548;
+            font-size: 13px;
+            padding-left: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #E0E0E0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #1976D2;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: #F44336;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #D32F2F;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+        .result.success {
+            background: #E8F5E9;
+            border: 1px solid #4CAF50;
+            color: #2E7D32;
+        }
+        .result.error {
+            background: #FFEBEE;
+            border: 1px solid #F44336;
+            color: #C62828;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 25px;
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>⚡ VoltMeter</h1>
+            <p>Penghapusan Akun</p>
+        </div>
+        
+        <div class="warning">
+            <h3>⚠️ Peringatan: Tindakan Ini Tidak Dapat Dibatalkan</h3>
+            <ul>
+                <li>Semua data pencatatan meter akan dihapus</li>
+                <li>Riwayat kunjungan akan dihapus</li>
+                <li>Akun Anda akan dihapus permanen</li>
+            </ul>
+        </div>
+        
+        <form id="deleteForm">
+            <div class="form-group">
+                <label for="username">Username *</label>
+                <input type="text" id="username" name="username" placeholder="Masukkan username Anda" required>
+            </div>
+            
+            <button type="submit" class="btn" id="submitBtn">
+                🗑️ Hapus Akun Saya
+            </button>
+        </form>
+        
+        <div id="result" class="result"></div>
+        
+        <div class="footer">
+            <p>© 2026 VoltMeter - Pencatatan Meter Listrik</p>
+            <p>Untuk bantuan, hubungi: support@ifukrida.net</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://voltmeter.ifukrida.net/voltmeter_api/routes';
+        
+        document.getElementById('deleteForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('result');
+            const username = document.getElementById('username').value.trim();
+            
+            // Confirm before delete
+            if (!confirm('Apakah Anda yakin ingin menghapus akun "' + username + '"? Tindakan ini tidak dapat dibatalkan!')) {
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Memproses...';
+            
+            try {
+                // Step 1: Cari user ID berdasarkan username
+                const usersResponse = await fetch(API_BASE + '/users.php');
+                const users = await usersResponse.json();
+                
+                const user = users.find(u => u.username === username);
+                
+                if (!user) {
+                    throw new Error('Username tidak ditemukan');
+                }
+                
+                // Step 2: Hapus user berdasarkan ID
+                const deleteResponse = await fetch(API_BASE + '/users.php?id=' + user.id, {
+                    method: 'DELETE'
+                });
+                
+                const result = await deleteResponse.json();
+                
+                resultDiv.style.display = 'block';
+                if (result.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ Berhasil!</strong><br>
+                        Akun "${username}" berhasil dihapus permanen.
+                    `;
+                    document.getElementById('deleteForm').reset();
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `<strong>❌ Gagal!</strong><br>${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>❌ Error!</strong><br>${error.message}`;
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = '🗑️ Hapus Akun Saya';
+        });
+    </script>
+</body>
+</html>

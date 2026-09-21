@@ -86,8 +86,7 @@ private fun filterRecordByMonthYear(record: MeterRecord, month: Int?, year: Int?
 @Composable
 fun HomeScreen(
     viewModel: VoltMeterViewModel,
-    onCustomerClick: (Customer) -> Unit = {},
-    onMeterClick: (Customer, Int) -> Unit = { cust, idx -> onCustomerClick(cust) }
+    onCustomerClick: (Customer) -> Unit = {}
 ) {
     val user = viewModel.currentUser.value
     val customers = viewModel.customers.value
@@ -95,6 +94,7 @@ fun HomeScreen(
     val pendingRecords = viewModel.pendingRecords.value
     val verifiedRecords = viewModel.verifiedRecords.value
     val rejectedRecords = viewModel.rejectedRecords.value
+    val isOnline = viewModel.isOnline.value
 
     var expandedSection by remember { mutableStateOf<String?>(null) }
     var blockedCustomer by remember { mutableStateOf<Customer?>(null) }
@@ -111,36 +111,17 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.syncWorkOrders(silent = true)
+        viewModel.syncWorkOrders()
+        viewModel.syncUnsyncedRecords()
         viewModel.loadTodayRecords()
-        viewModel.loadPendingRecords()
-        viewModel.loadVerifiedRecords()
-        viewModel.loadRejectedRecords()
+        viewModel.loadPendingRecords(user?.user_id)
+        viewModel.loadVerifiedRecords(user?.user_id)
+        viewModel.loadRejectedRecords(user?.user_id)
     }
 
     // Compute per-meter completion count
     val totalMeters = remember(customers) {
         customers.sumOf { it.meters.size }
-    }
-
-    val allMeterItems = remember(customers) {
-        customers.flatMap { customer ->
-            customer.meters.mapIndexed { index, meter ->
-                Triple(customer, index, meter)
-            }
-        }
-    }
-
-    val completedMeters = remember(allMeterItems) {
-        allMeterItems.count { it.third.monthly_status != null && it.third.monthly_status != "REJECTED" }
-    }
-
-    val remainingMeters = remember(totalMeters, completedMeters) {
-        totalMeters - completedMeters
-    }
-
-    val meterWorkItems = remember(allMeterItems) {
-        allMeterItems.filter { it.third.monthly_status == null }
     }
 
     val cal = remember { Calendar.getInstance() }
@@ -178,6 +159,10 @@ fun HomeScreen(
         }
     }
 
+    val completedMeters = remember(filteredVerifiedRecords) {
+        filteredVerifiedRecords.size
+    }
+
     val deadlines = remember(customers) {
         customers.mapIndexed { index, customer ->
             val day = 20 + (index % 10)
@@ -203,6 +188,30 @@ fun HomeScreen(
             color = Color.Gray,
             fontSize = 14.sp
         )
+
+        if (!isOnline) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Mode Offline - Data disimpan lokal",
+                        fontSize = 13.sp,
+                        color = Color(0xFF795548)
+                    )
+                }
+            }
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -231,7 +240,7 @@ fun HomeScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             StatCard(
                 modifier = Modifier.weight(1f),
@@ -246,13 +255,6 @@ fun HomeScreen(
                 value = "$completedMeters",
                 label = "Selesai",
                 color = Color(0xFF4CAF50)
-            )
-            StatCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.Schedule,
-                value = "$remainingMeters",
-                label = "Belum Dicatat",
-                color = Color(0xFFFF9800)
             )
         }
 
@@ -375,30 +377,27 @@ fun HomeScreen(
         DropdownSection(
             title = "Daftar Kerja",
             icon = Icons.AutoMirrored.Filled.List,
-            count = meterWorkItems.size,
+            count = customers.size,
             expanded = expandedSection == "kerja",
             onToggle = { expandedSection = if (expandedSection == "kerja") null else "kerja" }
         ) {
-            if (meterWorkItems.isEmpty()) {
+            if (customers.isEmpty()) {
                 Text(
                     text = "Tidak ada data pekerjaan",
                     color = Color.Gray,
                     modifier = Modifier.padding(8.dp)
                 )
             } else {
-                meterWorkItems.forEach { (customer, meterIndex, meter) ->
-                    MeterWorkCard(
-                        customerName = customer.name,
-                        meterNumber = meter.meter_number,
+                customers.forEach { customer ->
+                    CustomerWorkCard(
+                        name = customer.name,
                         address = customer.address,
                         deadline = deadlines[customer.customer_id] ?: "-",
-                        monthlyStatus = meter.monthly_status,
-                        isBlocked = meter.monthly_status == "VERIFIED" || meter.monthly_status == "PENDING",
+                        monthlyStatus = customer.monthly_status,
                         onClick = {
-                            if (viewModel.canRecord(customer, meterIndex)) {
+                            if (viewModel.canRecord(customer)) {
                                 viewModel.selectCustomer(customer)
-                                viewModel.selectMeter(meterIndex)
-                                onMeterClick(customer, meterIndex)
+                                onCustomerClick(customer)
                             } else {
                                 blockedCustomer = customer
                             }
@@ -428,10 +427,8 @@ fun HomeScreen(
                         onClick = {
                             val customer = customers.find { it.customer_id == record.customer_id }
                             if (customer != null) {
-                                val meterIdx = customer.meters.indexOfFirst { it.meter_number == record.meter_number }.coerceAtLeast(0)
                                 viewModel.selectCustomer(customer)
-                                viewModel.selectMeter(meterIdx)
-                                onMeterClick(customer, meterIdx)
+                                onCustomerClick(customer)
                             }
                         }
                     )
@@ -484,10 +481,8 @@ fun HomeScreen(
                                     address = record.customer_address,
                                     meters = listOf(Meter(record.meter_number, record.previous_reading))
                                 )
-                            val meterIdx = customer.meters.indexOfFirst { it.meter_number == record.meter_number }.coerceAtLeast(0)
                             viewModel.selectCustomer(customer)
-                            viewModel.selectMeter(meterIdx)
-                            onMeterClick(customer, meterIdx)
+                            onCustomerClick(customer)
                         }
                     )
                 }
@@ -521,7 +516,7 @@ fun HomeScreen(
     }
 
     blockedCustomer?.let { customer ->
-        val reason = viewModel.getCustomerBlockReason(customer)
+        val reason = viewModel.getRecordBlockReason(customer)
         AlertDialog(
             onDismissRequest = { blockedCustomer = null },
             title = { Text("Tidak Bisa Input") },
@@ -600,13 +595,11 @@ private fun DropdownSection(
 }
 
 @Composable
-private fun MeterWorkCard(
-    customerName: String,
-    meterNumber: String,
+private fun CustomerWorkCard(
+    name: String,
     address: String,
     deadline: String,
     monthlyStatus: String? = null,
-    isBlocked: Boolean = false,
     onClick: () -> Unit
 ) {
     val statusColor = when (monthlyStatus) {
@@ -626,35 +619,17 @@ private fun MeterWorkCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable(enabled = !isBlocked) { onClick() },
+            .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isBlocked) Color(0xFFFFF3E0) else Color(0xFFF5F5F5)
+            containerColor = Color(0xFFF5F5F5)
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = customerName,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                if (isBlocked && statusLabel != null && statusColor != null) {
-                    Text(
-                        text = statusLabel,
-                        fontSize = 10.sp,
-                        color = statusColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Meter: $meterNumber",
-                fontSize = 13.sp,
-                color = Color(0xFF1565C0),
-                fontWeight = FontWeight.Medium
+                text = name,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -671,7 +646,7 @@ private fun MeterWorkCard(
                 color = Color(0xFFFF9800),
                 fontWeight = FontWeight.Medium
             )
-            if (!isBlocked && statusLabel != null && statusColor != null) {
+            if (statusLabel != null && statusColor != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = statusLabel,
