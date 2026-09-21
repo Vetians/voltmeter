@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -14,8 +15,8 @@ android {
         applicationId = "org.ukrida.voltmeter"
         minSdk = 27
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 5
+        versionName = "1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -55,9 +56,14 @@ dependencies {
 //Gambar dan icon
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.5.0")
-    
+
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    // Room Database
+    implementation("androidx.room:room-runtime:${libs.versions.room.get()}")
+    implementation("androidx.room:room-ktx:${libs.versions.room.get()}")
+    ksp("androidx.room:room-compiler:${libs.versions.room.get()}")
 
     implementation(libs.androidx.core.ktx)
 
