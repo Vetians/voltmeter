@@ -55,7 +55,7 @@ fun AdminBottomNav(navController: NavHostController, currentRoute: String?) {
                     Text(
                         screen.label,
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = if (currentRoute == screen.route) FontWeight.Bold else FontWeight.Medium
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(

@@ -115,12 +115,53 @@ class LocalRepository(context: Context) {
         meterRecordDao.insertAll(records.map { it.toEntity() })
     }
 
+    suspend fun replaceSyncedRecords(records: List<MeterRecord>, recordedBy: String? = null, status: String? = null) {
+        if (recordedBy != null && status != null) {
+            meterRecordDao.deleteSyncedByUserAndStatus(recordedBy, status)
+        } else if (recordedBy != null) {
+            meterRecordDao.deleteSyncedByUser(recordedBy)
+        } else if (status != null) {
+            meterRecordDao.deleteSyncedByStatus(status)
+        } else {
+            meterRecordDao.deleteAllSynced()
+        }
+        meterRecordDao.insertAll(records.map { it.toEntity() })
+    }
+
+    /**
+     * Menghapus SEMUA records (isSynced=0 dan isSynced=1) untuk kombinasi user+status tertentu,
+     * lalu insert records terbaru dari server.
+     *
+     * Digunakan saat load dari server agar records offline lama (isSynced=0) tidak muncul
+     * bersamaan dengan versi server → mencegah duplikat pending.
+     */
+    suspend fun replaceAllRecordsByUserAndStatus(
+        records: List<MeterRecord>,
+        recordedBy: String? = null,
+        status: String? = null
+    ) {
+        if (recordedBy != null && status != null) {
+            meterRecordDao.deleteAllByUserAndStatus(recordedBy, status)
+        } else if (recordedBy != null) {
+            meterRecordDao.deleteAllByUser(recordedBy)
+        } else if (status != null) {
+            meterRecordDao.deleteAllByStatus(status)
+        } else {
+            meterRecordDao.deleteAll()
+        }
+        meterRecordDao.insertAll(records.map { it.toEntity() })
+    }
+
     suspend fun getUnsyncedRecords(): List<MeterRecord> {
         return meterRecordDao.getUnsyncedRecords().map { it.toDomain() }
     }
 
     suspend fun markRecordAsSynced(recordId: String) {
         meterRecordDao.markAsSynced(recordId)
+    }
+
+    suspend fun updateVerificationStatus(recordId: String, status: String, note: String? = null) {
+        meterRecordDao.updateVerificationStatus(recordId, status, note)
     }
 
     suspend fun deleteAllRecords() {
@@ -162,7 +203,6 @@ class LocalRepository(context: Context) {
 
     private fun MeterRecordEntity.toDomain(): MeterRecord {
         return MeterRecord(
-            id = id,
             record_id = record_id,
             customer_id = customer_id,
             meter_number = meter_number,
@@ -186,7 +226,6 @@ class LocalRepository(context: Context) {
 
     private fun MeterRecord.toEntity(): MeterRecordEntity {
         return MeterRecordEntity(
-            id = id,
             record_id = record_id,
             customer_id = customer_id,
             meter_number = meter_number,
@@ -205,7 +244,7 @@ class LocalRepository(context: Context) {
             verification_note = verification_note,
             customer_name = customer_name,
             customer_address = customer_address,
-            isSynced = false
+            isSynced = true
         )
     }
 

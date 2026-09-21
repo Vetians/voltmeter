@@ -5,8 +5,7 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "meter_records")
 data class MeterRecordEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    @PrimaryKey
     val record_id: String,
     val customer_id: String,
     val meter_number: String,

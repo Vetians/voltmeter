@@ -4,12 +4,13 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitInstance {
-    // private const val BASE_URL = "http://192.168.2.18/voltmeter_api/routes/"
-    // private const val BASE_URL = "http://10.246.180.254/voltmeter_api/routes/"
-     private const val BASE_URL = "http://10.0.2.2/voltmeter_api/routes/"
+    // Production - Hosting IFUKRIDA
+    private const val BASE_URL = "https://voltmeter.ifukrida.net/voltmeter_api/routes/"
+    const val IMAGE_BASE_URL = "https://voltmeter.ifukrida.net/voltmeter_api/uploads/photos/"
 
-//    private const val BASE_URL = "http://10.246.180.254/voltmeter_api/routes/"
-    const val IMAGE_BASE_URL = "http://10.0.2.2/voltmeter_api/uploads/photos/"
+    // Local Development (uncomment untuk testing lokal)
+    // private const val BASE_URL = "http://10.0.2.2/voltmeter_api/routes/"
+    // const val IMAGE_BASE_URL = "http://10.0.2.2/voltmeter_api/uploads/photos/"
 
     val api: ApiService by lazy {
         Retrofit.Builder()

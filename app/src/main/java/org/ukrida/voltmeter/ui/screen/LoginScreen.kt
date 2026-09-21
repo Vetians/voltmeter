@@ -261,13 +261,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "Default Login:",
-                fontSize = 11.sp,
-                color = Color.White.copy(alpha = 0.5f),
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "Admin: admin / admin123\nSurveyor: surveyor1 / surveyor123",
+                text = "Login menggunakan akun dari server",
                 fontSize = 11.sp,
                 color = Color.White.copy(alpha = 0.5f),
                 textAlign = TextAlign.Center

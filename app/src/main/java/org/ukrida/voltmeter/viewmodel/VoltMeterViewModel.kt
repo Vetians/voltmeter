@@ -50,6 +50,13 @@ class VoltMeterViewModel(
     var verifiedRecords = mutableStateOf<List<MeterRecord>>(emptyList())
     var rejectedRecords = mutableStateOf<List<MeterRecord>>(emptyList())
 
+    // Job tracking untuk cancel collector lama sebelum buat yang baru
+    // Ini mencegah duplikat akibat multiple coroutine subscribe ke Flow yang sama
+    private var pendingJob: kotlinx.coroutines.Job? = null
+    private var verifiedJob: kotlinx.coroutines.Job? = null
+    private var rejectedJob: kotlinx.coroutines.Job? = null
+    private var customersJob: kotlinx.coroutines.Job? = null
+
     // ============= CUSTOMER STATE =============
     var customers = mutableStateOf<List<Customer>>(emptyList())
     var selectedCustomer = mutableStateOf<Customer?>(null)
@@ -81,51 +88,20 @@ class VoltMeterViewModel(
     var isOnline = mutableStateOf(true)
 
     // ============= AUTH =============
-    // Default credentials untuk internal testing (tanpa hosting database)
-    // Format: username -> Triple(password, role, user_id)
-    private val defaultUsers = mapOf(
-        "admin" to Triple("admin123", "admin", "USR001"),
-        "surveyor1" to Triple("surveyor123", "surveyor", "USR002"),
-        "surveyor2" to Triple("surveyor123", "surveyor", "USR003")
-    )
-
     init {
         // Load data dari local database saat startup
         loadLocalData()
     }
 
     private fun loadLocalData() {
+        // Hanya load customers saat startup (data ringan)
+        // Records dimuat secara lazy setelah login via loadMeterRecords()/loadPendingRecords()
+        // untuk menghindari SQLiteBlobTooBigException pada tabel meter_records yang besar
         viewModelScope.launch {
             localRepo.getAllCustomers().collectLatest { localCustomers ->
                 if (localCustomers.isNotEmpty()) {
                     customers.value = localCustomers
                 }
-            }
-        }
-
-        viewModelScope.launch {
-            localRepo.getAllRecords().collectLatest { localRecords ->
-                if (localRecords.isNotEmpty()) {
-                    meterRecords.value = localRecords
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            localRepo.getPendingRecords().collectLatest { records ->
-                pendingRecords.value = records
-            }
-        }
-
-        viewModelScope.launch {
-            localRepo.getVerifiedRecords().collectLatest { records ->
-                verifiedRecords.value = records
-            }
-        }
-
-        viewModelScope.launch {
-            localRepo.getRejectedRecords().collectLatest { records ->
-                rejectedRecords.value = records
             }
         }
     }
@@ -134,10 +110,12 @@ class VoltMeterViewModel(
         viewModelScope.launch {
             try {
                 isLoading.value = true
+                Log.d("VOLTMETER", "Login attempt: $username")
 
-                // 1. Coba login dari local database dulu
+                // 1. Coba login dari local database dulu (offline mode untuk user yang pernah login)
                 val localUser = localRepo.login(username, password)
                 if (localUser != null) {
+                    Log.d("VOLTMETER", "Login dari local database: ${localUser.user_id}")
                     currentUser.value = localUser
                     isLoggedIn.value = true
                     loginError.value = null
@@ -145,50 +123,31 @@ class VoltMeterViewModel(
                     return@launch
                 }
 
-                // 2. Jika tidak ada di local, coba login hardcoded
-                val userInfo = defaultUsers[username]
-                if (userInfo != null && userInfo.first == password) {
-                    val user = User(
-                        id = 1,
-                        user_id = userInfo.third, // USR001, USR002, USR003
-                        name = username.replaceFirstChar { it.uppercase() },
-                        username = username,
-                        password = password,
-                        role = userInfo.second,
-                        token = "dummy_token_$username"
-                    )
-                    currentUser.value = user
+                // 2. Coba login via API (server hosting)
+                try {
+                    Log.d("VOLTMETER", "Coba login via API ke: ${org.ukrida.voltmeter.data.api.RetrofitInstance.api}")
+                    val apiUser = repo.login(username, password)
+                    Log.d("VOLTMETER", "API login berhasil: ${apiUser.user_id} - ${apiUser.name}")
+                    currentUser.value = apiUser
                     isLoggedIn.value = true
                     loginError.value = null
 
-                    // Simpan user ke local database
-                    localRepo.saveUser(user)
-                } else {
-                    // 3. Jika tidak ada di hardcoded, coba login via API
-                    isOnline.value = checkConnectivity()
-                    if (isOnline.value) {
-                        try {
-                            val apiUser = repo.login(username, password)
-                            currentUser.value = apiUser
-                            isLoggedIn.value = true
-                            loginError.value = null
-
-                            // Simpan user ke local database
-                            localRepo.saveUser(apiUser)
-                        } catch (e: Exception) {
-                            // Login via API gagal
-                            currentUser.value = null
-                            isLoggedIn.value = false
-                            loginError.value = "Username atau password salah"
-                        }
-                    } else {
-                        // Offline dan tidak ada di local/hardcoded
-                        currentUser.value = null
-                        isLoggedIn.value = false
-                        loginError.value = "Username atau password salah (offline)"
-                    }
+                    // Simpan user ke local database untuk offline
+                    localRepo.saveUser(apiUser)
+                    isLoading.value = false
+                    return@launch
+                } catch (e: Exception) {
+                    Log.e("VOLTMETER", "API login gagal: ${e.message}")
+                    e.printStackTrace()
                 }
+
+                // Jika login di DB lokal & API gagal
+                Log.d("VOLTMETER", "Metode login gagal")
+                currentUser.value = null
+                isLoggedIn.value = false
+                loginError.value = "Username atau password salah atau server tidak terjangkau"
             } catch (e: Exception) {
+                Log.e("VOLTMETER", "Login error: ${e.message}")
                 currentUser.value = null
                 isLoggedIn.value = false
                 loginError.value = "Username atau password salah"
@@ -210,11 +169,16 @@ class VoltMeterViewModel(
     private fun checkConnectivity(): Boolean {
         return try {
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-            val activeNetwork = connectivityManager.activeNetwork
-            val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-            networkCapabilities != null
+            val activeNetwork = connectivityManager.activeNetwork ?: return false
+            val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+
+            // Cek apakah punya internet capability
+            networkCapabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            networkCapabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
         } catch (e: Exception) {
-            false
+            Log.e("VOLTMETER", "Check connectivity error: ${e.message}")
+            // Jika gagal cek, asumsikan online untuk mencoba API
+            true
         }
     }
 
@@ -249,68 +213,70 @@ class VoltMeterViewModel(
 
     // ============= PENDING / VERIFIED / REJECTED =============
     fun loadPendingRecords(recordedBy: String? = null) {
-        viewModelScope.launch {
+        // Cancel collector lama dulu untuk mencegah duplikat
+        pendingJob?.cancel()
+        pendingJob = viewModelScope.launch {
             try {
                 isOnline.value = checkConnectivity()
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: return@launch
                     val remoteRecords = repo.getRecordsByVerification(token, 0, recordedBy)
-                    localRepo.saveRecords(remoteRecords)
+                    // Hapus semua record PENDING untuk user ini (termasuk yg belum sync)
+                    // sebelum replace dengan data terbaru dari server
+                    localRepo.replaceAllRecordsByUserAndStatus(remoteRecords, recordedBy, "PENDING")
                 }
-                // Load dari local database
                 localRepo.getPendingRecords(recordedBy).collectLatest { records ->
-                    pendingRecords.value = records
+                    // Deduplikasi berdasarkan record_id untuk jaga-jaga
+                    pendingRecords.value = records.distinctBy { it.record_id }
                 }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load pending records gagal", e)
-                isOnline.value = false
-                // Tetap load dari local
                 localRepo.getPendingRecords(recordedBy).collectLatest { records ->
-                    pendingRecords.value = records
+                    pendingRecords.value = records.distinctBy { it.record_id }
                 }
             }
         }
     }
 
     fun loadVerifiedRecords(recordedBy: String? = null) {
-        viewModelScope.launch {
+        verifiedJob?.cancel()
+        verifiedJob = viewModelScope.launch {
             try {
                 isOnline.value = checkConnectivity()
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: return@launch
                     val remoteRecords = repo.getRecordsByVerification(token, 1, recordedBy)
-                    localRepo.saveRecords(remoteRecords)
+                    localRepo.replaceAllRecordsByUserAndStatus(remoteRecords, recordedBy, "VERIFIED")
                 }
                 localRepo.getVerifiedRecords(recordedBy).collectLatest { records ->
-                    verifiedRecords.value = records
+                    verifiedRecords.value = records.distinctBy { it.record_id }
                 }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load verified records gagal", e)
-                isOnline.value = false
                 localRepo.getVerifiedRecords(recordedBy).collectLatest { records ->
-                    verifiedRecords.value = records
+                    verifiedRecords.value = records.distinctBy { it.record_id }
                 }
             }
         }
     }
 
     fun loadRejectedRecords(recordedBy: String? = null) {
-        viewModelScope.launch {
+        rejectedJob?.cancel()
+        rejectedJob = viewModelScope.launch {
             try {
                 isOnline.value = checkConnectivity()
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: return@launch
                     val remoteRecords = repo.getRecordsByVerification(token, 2, recordedBy)
-                    localRepo.saveRecords(remoteRecords)
+                    localRepo.replaceAllRecordsByUserAndStatus(remoteRecords, recordedBy, "REJECTED")
                 }
                 localRepo.getRejectedRecords(recordedBy).collectLatest { records ->
-                    rejectedRecords.value = records
+                    rejectedRecords.value = records.distinctBy { it.record_id }
                 }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load rejected records gagal", e)
-                isOnline.value = false
                 localRepo.getRejectedRecords(recordedBy).collectLatest { records ->
-                    rejectedRecords.value = records
+                    rejectedRecords.value = records.distinctBy { it.record_id }
                 }
             }
         }
@@ -326,10 +292,11 @@ class VoltMeterViewModel(
                 if (isOnline.value) {
                     repo.verifyRecord(token, recordId, userId)
                 }
+                localRepo.updateVerificationStatus(recordId, "VERIFIED")
                 successMessage.value = "Pekerjaan berhasil diverifikasi"
-                loadPendingRecords()
-                loadVerifiedRecords()
-                loadRejectedRecords()
+                loadPendingRecords(userId)
+                loadVerifiedRecords(userId)
+                loadRejectedRecords(userId)
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Verify record gagal", e)
                 errorMessage.value = "Gagal verifikasi: ${e.message}"
@@ -485,6 +452,7 @@ class VoltMeterViewModel(
 
     fun verifyRecord(recordId: String, status: String, note: String? = null, customerId: String) {
         val token = currentUser.value?.token ?: return
+        val userId = currentUser.value?.user_id ?: return
         viewModelScope.launch {
             try {
                 isLoading.value = true
@@ -498,11 +466,12 @@ class VoltMeterViewModel(
                         return@launch
                     }
                 }
+                localRepo.updateVerificationStatus(recordId, status, note)
                 successMessage.value = "Status verifikasi berhasil diperbarui"
                 loadCustomerHistory(customerId)
-                loadPendingRecords()
-                loadVerifiedRecords()
-                loadRejectedRecords()
+                loadPendingRecords(userId)
+                loadVerifiedRecords(userId)
+                loadRejectedRecords(userId)
             } catch (e: Exception) {
                 errorMessage.value = "Gagal memverifikasi data: ${e.message}"
             } finally {
@@ -551,14 +520,13 @@ class VoltMeterViewModel(
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: return@launch
                     val remoteRecords = repo.getMeterRecords(token, customerId)
-                    localRepo.saveRecords(remoteRecords)
+                    localRepo.replaceSyncedRecords(remoteRecords)
                 }
                 localRepo.getRecordsByCustomerId(customerId).collectLatest { records ->
                     customerHistory.value = records
                 }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load history gagal", e)
-                isOnline.value = false
                 localRepo.getRecordsByCustomerId(customerId).collectLatest { records ->
                     customerHistory.value = records
                 }
@@ -881,14 +849,13 @@ class VoltMeterViewModel(
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: return@launch
                     val remoteRecords = repo.getMeterRecords(token)
-                    localRepo.saveRecords(remoteRecords)
+                    localRepo.replaceSyncedRecords(remoteRecords)
                 }
                 localRepo.getAllRecords().collectLatest { records ->
                     meterRecords.value = records
                 }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load records gagal", e)
-                isOnline.value = false
                 localRepo.getAllRecords().collectLatest { records ->
                     meterRecords.value = records
                 }
@@ -903,7 +870,7 @@ class VoltMeterViewModel(
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: return@launch
                     val remoteRecords = repo.getTodayRecords(token)
-                    localRepo.saveRecords(remoteRecords)
+                    localRepo.replaceSyncedRecords(remoteRecords, currentUser.value?.user_id)
                 }
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val today = dateFormat.format(Date())

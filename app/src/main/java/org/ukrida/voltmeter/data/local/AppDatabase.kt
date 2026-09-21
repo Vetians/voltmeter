@@ -19,7 +19,7 @@ import org.ukrida.voltmeter.data.local.entity.UserEntity
         MeterRecordEntity::class,
         UserEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(MeterListConverter::class)

@@ -1,9 +1,9 @@
 <?php
-// Database Configuration
+// Database Configuration - Hosting IFUKRIDA
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'voltmeter_db');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_NAME', 'ifum9622_voltmeter');
+define('DB_USER', 'ifum9622_felix');
+define('DB_PASS', 'IFUkrida-26');
 
 function getDB() {
     try {
