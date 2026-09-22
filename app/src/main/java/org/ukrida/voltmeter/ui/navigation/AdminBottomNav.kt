@@ -34,7 +34,8 @@ fun AdminBottomNav(navController: NavHostController, currentRoute: String?) {
     ) {
         items.forEach { screen ->
             NavigationBarItem(
-                selected = currentRoute == screen.route,
+                selected = currentRoute == screen.route
+                        || (screen == AdminScreen.Customers && currentRoute?.startsWith("admin_customer_detail") == true),
                 onClick = {
                     navController.navigate(screen.route) {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }

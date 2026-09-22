@@ -107,8 +107,20 @@ class LocalRepository(context: Context) {
         }
     }
 
+    suspend fun getMeterStatus(customerId: String, meterNumber: String, yearMonth: String): String? {
+        return meterRecordDao.getMeterStatus(customerId, meterNumber, yearMonth)
+    }
+
+    suspend fun getRecordById(recordId: String): MeterRecord? {
+        return meterRecordDao.getRecordById(recordId)?.toDomain()
+    }
+
     suspend fun saveRecord(record: MeterRecord) {
-        meterRecordDao.insert(record.toEntity())
+        meterRecordDao.insert(record.toEntity(synced = false))
+    }
+
+    suspend fun saveRecordSynced(record: MeterRecord) {
+        meterRecordDao.insert(record.toEntity(synced = true))
     }
 
     suspend fun saveRecords(records: List<MeterRecord>) {
@@ -178,7 +190,7 @@ class LocalRepository(context: Context) {
             tariff = tariff,
             last_month_usage = last_month_usage,
             last_meter_reading = last_meter_reading,
-            meters = meters.map { Meter(it.meter_number, it.last_reading) },
+            meters = meters.map { Meter(it.meter_number, it.last_reading, it.monthly_status) },
             latitude = latitude,
             longitude = longitude,
             monthly_status = monthly_status
@@ -194,7 +206,7 @@ class LocalRepository(context: Context) {
             tariff = tariff,
             last_month_usage = last_month_usage,
             last_meter_reading = last_meter_reading,
-            meters = meters.map { MeterDto(it.meter_number, it.last_reading) },
+            meters = meters.map { MeterDto(it.meter_number, it.last_reading, it.monthly_status) },
             latitude = latitude,
             longitude = longitude,
             monthly_status = monthly_status
@@ -224,7 +236,7 @@ class LocalRepository(context: Context) {
         )
     }
 
-    private fun MeterRecord.toEntity(): MeterRecordEntity {
+    private fun MeterRecord.toEntity(synced: Boolean = true): MeterRecordEntity {
         return MeterRecordEntity(
             record_id = record_id,
             customer_id = customer_id,
@@ -244,7 +256,7 @@ class LocalRepository(context: Context) {
             verification_note = verification_note,
             customer_name = customer_name,
             customer_address = customer_address,
-            isSynced = true
+            isSynced = synced
         )
     }
 

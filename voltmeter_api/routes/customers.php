@@ -142,6 +142,8 @@ if ($method === 'POST') {
     }
 
     $result = [];
+    $currentMonth = (int) date('m');
+    $currentYear = (int) date('Y');
     foreach ($customers as $customer) {
         $stmtMeter = $db->prepare("SELECT * FROM meters WHERE customer_id = ? ORDER BY meter_index ASC");
         $stmtMeter->execute([$customer['customer_id']]);
@@ -149,15 +151,36 @@ if ($method === 'POST') {
 
         $metersData = [];
         foreach ($meters as $m) {
+            // Kirim status pada meter yang tepat, bukan hanya ringkasan pelanggan.
+            $stmtMeterStatus = $db->prepare("
+                SELECT verification_status FROM meter_records
+                WHERE customer_id = ? AND meter_number = ?
+                  AND MONTH(record_date) = ? AND YEAR(record_date) = ?
+                ORDER BY record_date DESC, record_time DESC, created_at DESC LIMIT 1
+            ");
+            $stmtMeterStatus->execute([$customer['customer_id'], $m['meter_number'], $currentMonth, $currentYear]);
+            $meterStatusRow = $stmtMeterStatus->fetch();
+
+            // Hanya pencatatan yang sudah VERIFIED yang boleh menjadi stand
+            // bulan berikutnya; record yang ditolak tidak pernah ikut dihitung.
+            $stmtVerifiedReading = $db->prepare("
+                SELECT current_reading FROM meter_records
+                WHERE customer_id = ? AND meter_number = ? AND verification_status = 'VERIFIED'
+                ORDER BY record_date DESC, record_time DESC, created_at DESC LIMIT 1
+            ");
+            $stmtVerifiedReading->execute([$customer['customer_id'], $m['meter_number']]);
+            $verifiedReadingRow = $stmtVerifiedReading->fetch();
+            $lastVerifiedReading = $verifiedReadingRow
+                ? (float) $verifiedReadingRow['current_reading']
+                : (float) $m['last_reading'];
             $metersData[] = [
                 'meter_number' => $m['meter_number'],
-                'last_reading' => (float) $m['last_reading']
+                'last_reading' => $lastVerifiedReading,
+                'monthly_status' => $meterStatusRow ? $meterStatusRow['verification_status'] : null
             ];
         }
 
         // Get monthly verification status for this customer
-        $currentMonth = (int) date('m');
-        $currentYear = (int) date('Y');
         $stmtStatus = $db->prepare("
             SELECT verification_status FROM meter_records 
             WHERE customer_id = ? AND MONTH(record_date) = ? AND YEAR(record_date) = ?

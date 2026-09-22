@@ -63,20 +63,9 @@ try {
             $input['recorded_by'] ?? ''
         ]);
 
-        if (!empty($input['meter_number']) && !empty($input['customer_id'])) {
-
-            $stmt2 = $db->prepare("
-                UPDATE meters
-                SET last_reading = ?
-                WHERE customer_id = ? AND meter_number = ?
-            ");
-
-            $stmt2->execute([
-                $currentReading,
-                $input['customer_id'],
-                $input['meter_number']
-            ]);
-        }
+        // Jangan ubah stand terakhir saat record baru dibuat. Record ini masih
+        // PENDING dan dapat ditolak; stand meter hanya berubah setelah Admin
+        // memberikan status VERIFIED di endpoint verifikasi.
 
         http_response_code(201);
 

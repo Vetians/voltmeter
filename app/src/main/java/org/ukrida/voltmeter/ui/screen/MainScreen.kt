@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +52,10 @@ fun MainScreen(
     val successMessage = viewModel.successMessage.value
     val errorMessage = viewModel.errorMessage.value
     val selectedCustomer = viewModel.selectedCustomer.value
+    val isDetailRoute = currentRoute == "meter_selection"
+            || currentRoute?.startsWith("recording/") == true
+            || currentRoute == "admin_register_user"
+            || currentRoute?.startsWith("admin_customer_detail") == true
 
     LaunchedEffect(successMessage) {
         successMessage?.let {
@@ -71,11 +76,29 @@ fun MainScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = if (role == "admin") "VoltMeter Admin" else "VoltMeter",
+                        text = when {
+                            currentRoute == "meter_selection" -> "Pilih Meteran"
+                            currentRoute?.startsWith("recording/") == true -> "Input Meter"
+                            currentRoute == "admin_register_user" -> "Tambah Petugas"
+                            currentRoute?.startsWith("admin_customer_detail") == true -> "Detail Pelanggan"
+                            role == "admin" -> "VoltMeter Admin"
+                            else -> "VoltMeter"
+                        },
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
                         color = Color.White
                     )
+                },
+                navigationIcon = {
+                    if (isDetailRoute) {
+                        IconButton(onClick = { innerNavController.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Kembali",
+                                tint = Color.White
+                            )
+                        }
+                    }
                 },
                 actions = {
                     if (role != "admin") {
@@ -135,7 +158,13 @@ fun MainScreen(
                     HomeScreen(
                         viewModel = viewModel,
                         onCustomerClick = { customer ->
-                            innerNavController.navigate("recording")
+                            viewModel.selectCustomer(customer)
+                            if (customer.meters.size > 1) {
+                                innerNavController.navigate("meter_selection")
+                            } else {
+                                viewModel.selectMeter(0)
+                                innerNavController.navigate("recording/0")
+                            }
                         }
                     )
                 }
@@ -144,18 +173,48 @@ fun MainScreen(
                     CustomerListScreen(
                         viewModel = viewModel,
                         onCustomerClick = { customer ->
-                            innerNavController.navigate("recording")
+                            viewModel.selectCustomer(customer)
+                            if (customer.meters.size > 1) {
+                                innerNavController.navigate("meter_selection")
+                            } else {
+                                viewModel.selectMeter(0)
+                                innerNavController.navigate("recording/0")
+                            }
                         }
                     )
                 }
 
-                composable("recording") {
+                composable("meter_selection") {
+                    selectedCustomer?.let { customer ->
+                        MeterSelectionScreen(
+                            viewModel = viewModel,
+                            customer = customer,
+                            onMeterSelected = { meterIndex ->
+                                innerNavController.navigate("recording/$meterIndex")
+                            }
+                        )
+                    }
+                }
+
+                composable("recording/{meterIndex}") { backStackEntry ->
+                    val meterIndex = backStackEntry.arguments?.getString("meterIndex")?.toIntOrNull() ?: 0
                     selectedCustomer?.let { customer ->
                         RecordingScreen(
                             viewModel = viewModel,
                             customer = customer,
+                            meterIndex = meterIndex,
                             onRecordingSuccess = {
-                                innerNavController.popBackStack()
+                                if (customer.meters.size > 1) {
+                                    innerNavController.navigate("meter_selection") {
+                                        popUpTo("meter_selection") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                } else {
+                                    innerNavController.navigate("home") {
+                                        popUpTo("home") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                }
                             }
                         )
                     }

@@ -16,10 +16,24 @@ try {
     $status = $input['status'] ?? 'VERIFIED';
     $note = $input['note'] ?? null;
 
-    $stmt = $db->prepare("UPDATE meter_records SET verification_status = ?, verification_note = ? WHERE record_id = ?");
+    if (!in_array($status, ['VERIFIED', 'REJECTED'], true)) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "Status verifikasi tidak valid"]);
+        exit;
+    }
+
+    $stmt = $db->prepare("UPDATE meter_records SET verification_status = ?, verification_note = ? WHERE record_id = ? AND verification_status = 'PENDING'");
     $stmt->execute([$status, $note, $recordId]);
 
     if ($stmt->rowCount() > 0) {
+        $recordStmt = $db->prepare("SELECT customer_id, meter_number, previous_reading, current_reading FROM meter_records WHERE record_id = ?");
+        $recordStmt->execute([$recordId]);
+        $record = $recordStmt->fetch(PDO::FETCH_ASSOC);
+        if ($record && !empty($record['meter_number'])) {
+            $reading = $status === 'VERIFIED' ? $record['current_reading'] : $record['previous_reading'];
+            $meterStmt = $db->prepare("UPDATE meters SET last_reading = ? WHERE customer_id = ? AND meter_number = ?");
+            $meterStmt->execute([$reading, $record['customer_id'], $record['meter_number']]);
+        }
         echo json_encode(["success" => true, "message" => "Status verifikasi berhasil diperbarui"]);
     } else {
         http_response_code(404);

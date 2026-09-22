@@ -168,18 +168,8 @@ fun CustomerListScreen(
                     CustomerCard(
                         customer = customer,
                         onClick = {
-                            if (isAdmin) {
-                                viewModel.selectCustomer(customer)
-                                onCustomerClick(customer)
-                            } else {
-                                val canRecord = viewModel.canRecord(customer)
-                                if (canRecord) {
-                                    viewModel.selectCustomer(customer)
-                                    onCustomerClick(customer)
-                                } else {
-                                    blockedCustomer = customer
-                                }
-                            }
+                            viewModel.selectCustomer(customer)
+                            onCustomerClick(customer)
                         },
                         onEdit = { editingCustomer = customer },
                         onDelete = { deletingCustomer = customer; showDeleteDialog = true },

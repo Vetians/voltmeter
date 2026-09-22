@@ -77,6 +77,9 @@ class VoltMeterViewModel(
     var notes = mutableStateOf("")
     var currentMeterIndex = mutableStateOf(0)
     var savedMeters = mutableStateOf<Set<Int>>(emptySet())
+    // Event khusus pencatatan; jangan gunakan successMessage karena pesan sync juga sukses.
+    var recordSavedEvent = mutableStateOf(0)
+    var verifyingRecordId = mutableStateOf<String?>(null)
 
     // ============= MESSAGE STATE =============
     var successMessage = mutableStateOf<String?>(null)
@@ -294,9 +297,12 @@ class VoltMeterViewModel(
                 }
                 localRepo.updateVerificationStatus(recordId, "VERIFIED")
                 successMessage.value = "Pekerjaan berhasil diverifikasi"
-                loadPendingRecords(userId)
-                loadVerifiedRecords(userId)
-                loadRejectedRecords(userId)
+                // Admin melihat semua laporan. Jangan filter memakai ID Admin,
+                // karena laporan tersebut dibuat oleh surveyor dan akan terlihat
+                // seperti "hilang" setelah satu record diproses.
+                loadPendingRecords()
+                loadVerifiedRecords()
+                loadRejectedRecords()
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Verify record gagal", e)
                 errorMessage.value = "Gagal verifikasi: ${e.message}"
@@ -453,8 +459,10 @@ class VoltMeterViewModel(
     fun verifyRecord(recordId: String, status: String, note: String? = null, customerId: String) {
         val token = currentUser.value?.token ?: return
         val userId = currentUser.value?.user_id ?: return
+        if (verifyingRecordId.value != null) return
         viewModelScope.launch {
             try {
+                verifyingRecordId.value = recordId
                 isLoading.value = true
                 isOnline.value = checkConnectivity()
                 if (isOnline.value) {
@@ -467,6 +475,45 @@ class VoltMeterViewModel(
                     }
                 }
                 localRepo.updateVerificationStatus(recordId, status, note)
+
+                // Update monthly_status di customer.meters langsung
+                val allLocalRecords = pendingRecords.value + verifiedRecords.value + rejectedRecords.value
+                val meterRecord = allLocalRecords.find { it.record_id == recordId }
+                    ?: localRepo.getRecordById(recordId)
+                if (meterRecord != null) {
+                    val updatedCustomers = customers.value.map { cust ->
+                        if (cust.customer_id == customerId) {
+                            val updatedMeters = cust.meters.map { m ->
+                                if (m.meter_number == meterRecord.meter_number) {
+                                    // Record yang ditolak tidak boleh mengubah stand dasar.
+                                    // Nilai sebelumnya dipulihkan juga pada cache lokal.
+                                    m.copy(
+                                        last_reading = if (status == "REJECTED") meterRecord.previous_reading else m.last_reading,
+                                        monthly_status = status
+                                    )
+                                } else m
+                            }
+                            // monthly_status pelanggan hanya ringkasan untuk daftar;
+                            // status sebenarnya disimpan dan dievaluasi per meter.
+                            val customerStatus = when {
+                                updatedMeters.isNotEmpty() && updatedMeters.all { it.monthly_status == "VERIFIED" } -> "VERIFIED"
+                                updatedMeters.any { it.monthly_status == "PENDING" } -> "PENDING"
+                                updatedMeters.any { it.monthly_status == "REJECTED" } -> "REJECTED"
+                                else -> null
+                            }
+                            cust.copy(meters = updatedMeters, monthly_status = customerStatus)
+                        } else cust
+                    }
+                    customers.value = updatedCustomers
+                    // Update selectedCustomer juga
+                    selectedCustomer.value?.let { sel ->
+                        if (sel.customer_id == customerId) {
+                            selectedCustomer.value = updatedCustomers.find { it.customer_id == customerId }
+                        }
+                    }
+                    localRepo.saveCustomers(updatedCustomers)
+                }
+
                 successMessage.value = "Status verifikasi berhasil diperbarui"
                 loadCustomerHistory(customerId)
                 loadPendingRecords(userId)
@@ -476,6 +523,7 @@ class VoltMeterViewModel(
                 errorMessage.value = "Gagal memverifikasi data: ${e.message}"
             } finally {
                 isLoading.value = false
+                verifyingRecordId.value = null
             }
         }
     }
@@ -589,9 +637,38 @@ class VoltMeterViewModel(
                         allCustomers.addAll(wo.customers)
                     }
 
-                    // Simpan ke local database
-                    localRepo.saveCustomers(allCustomers)
-                    customers.value = allCustomers
+                    // Respons work order tidak selalu memuat monthly_status. Jangan sampai
+                    // status per meter yang sudah PENDING/VERIFIED di perangkat tertimpa null
+                    // setelah pengguna melakukan sync.
+                    val existingCustomers = customers.value.associateBy { it.customer_id }
+                    val mergedCustomers = allCustomers.map { remoteCustomer ->
+                        val localCustomer = existingCustomers[remoteCustomer.customer_id]
+                        val localMeters = localCustomer?.meters?.associateBy { it.meter_number }.orEmpty()
+                        val mergedMeters = remoteCustomer.meters.map { remoteMeter ->
+                            val localMeter = localMeters[remoteMeter.meter_number]
+                            remoteMeter.copy(
+                                monthly_status = remoteMeter.monthly_status?.ifEmpty { null }
+                                    ?: localMeter?.monthly_status
+                            )
+                        }
+                        remoteCustomer.copy(
+                            meters = mergedMeters,
+                            monthly_status = remoteCustomer.monthly_status?.ifEmpty { null }
+                                ?: localCustomer?.monthly_status
+                        )
+                    }
+
+                    // Simpan data yang telah digabungkan agar status meter tidak reset.
+                    localRepo.saveCustomers(mergedCustomers)
+                    customers.value = mergedCustomers
+                    selectedCustomer.value?.let { selected ->
+                        selectedCustomer.value = mergedCustomers.find { it.customer_id == selected.customer_id } ?: selected
+                    }
+
+                    // Recompute monthly_status per meter dari data record di DB lokal.
+                    // Ini memastikan status VERIFIED/PENDING/REJECTED tetap akurat meskipun
+                    // data sync dari server tidak membawa monthly_status.
+                    recomputeMeterStatuses()
 
                     val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.forLanguageTag("id"))
                     lastSync.value = dateFormat.format(Date())
@@ -607,6 +684,30 @@ class VoltMeterViewModel(
             } finally {
                 isLoading.value = false
             }
+        }
+    }
+
+    private suspend fun recomputeMeterStatuses() {
+        val currentYearMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+        val updatedCustomers = customers.value.map { customer ->
+            val updatedMeters = customer.meters.map { meter ->
+                val dbStatus = localRepo.getMeterStatus(customer.customer_id, meter.meter_number, currentYearMonth)
+                if (dbStatus != null && dbStatus != meter.monthly_status) {
+                    meter.copy(monthly_status = dbStatus)
+                } else meter
+            }
+            val customerStatus = when {
+                updatedMeters.all { it.monthly_status == "VERIFIED" } -> "VERIFIED"
+                updatedMeters.any { it.monthly_status == "PENDING" } -> "PENDING"
+                updatedMeters.any { it.monthly_status == "REJECTED" } -> "REJECTED"
+                else -> null
+            }
+            customer.copy(meters = updatedMeters, monthly_status = customerStatus)
+        }
+        customers.value = updatedCustomers
+        localRepo.saveCustomers(updatedCustomers)
+        selectedCustomer.value?.let { sel ->
+            selectedCustomer.value = updatedCustomers.find { it.customer_id == sel.customer_id } ?: sel
         }
     }
 
@@ -684,7 +785,8 @@ class VoltMeterViewModel(
     }
 
     fun markMeterSaved(index: Int) {
-        savedMeters.value = savedMeters.value + index
+        // Status kartu mengikuti PENDING/VERIFIED dari meter, bukan flag sementara
+        // "Selesai". Setelah input tersimpan, pencatatan masih menunggu Admin.
         clearCurrentMeterInput()
     }
 
@@ -696,16 +798,115 @@ class VoltMeterViewModel(
     }
 
     // ============= RECORDING RULES =============
-    fun canRecord(customer: Customer): Boolean {
-        return customer.monthly_status == null || customer.monthly_status == "REJECTED"
+    fun getMeterStatus(customerId: String, meterNumber: String): String? {
+        if (meterNumber.isEmpty()) return null
+        val currentYearMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+        // Prioritaskan record bulan berjalan di database. Dengan ini status REJECTED
+        // dari bulan sebelumnya tidak dapat membuka meter yang VERIFIED bulan ini.
+        val statusFromRecord = kotlinx.coroutines.runBlocking {
+            localRepo.getMeterStatus(customerId, meterNumber, currentYearMonth)
+        }
+        if (statusFromRecord != null) return statusFromRecord
+
+        // Fallback ke status per meter yang datang dari hasil sync server.
+        val cust = customers.value.find { it.customer_id == customerId }
+        val meter = cust?.meters?.find { it.meter_number == meterNumber }
+        return meter?.monthly_status
     }
 
-    fun getRecordBlockReason(customer: Customer): String? {
-        return when (customer.monthly_status) {
-            "VERIFIED" -> "Pencatatan bulan ini sudah terverifikasi. Tunggu bulan berikutnya."
-            "PENDING" -> "Pencatatan bulan ini sedang menunggu verifikasi admin."
+    fun canRecord(customer: Customer, meterIndex: Int = 0): Boolean {
+        val meterNumber = customer.meters.getOrNull(meterIndex)?.meter_number ?: return false
+        return canRecordMeter(customer, meterNumber)
+    }
+
+    fun canRecordMeter(customer: Customer, meterNumber: String): Boolean {
+        val status = getMeterStatus(customer.customer_id, meterNumber)
+        return status == null || status == "REJECTED"
+    }
+
+    fun canRecordAnyMeter(customer: Customer): Boolean {
+        return customer.meters.any { canRecordMeter(customer, it.meter_number) }
+    }
+
+    fun getRecordBlockReason(customer: Customer, meterIndex: Int = 0): String? {
+        val meter = customer.meters.getOrNull(meterIndex) ?: return null
+        val meterStatus = getMeterStatus(customer.customer_id, meter.meter_number) ?: meter.monthly_status
+        return when (meterStatus) {
+            "VERIFIED" -> "Pencatatan meter ${meter.meter_number} bulan ini sudah terverifikasi."
+            "PENDING" -> "Pencatatan meter ${meter.meter_number} bulan ini sedang menunggu verifikasi."
             else -> null
         }
+    }
+
+    fun getMeterBlockReason(customer: Customer, meterNumber: String): String? {
+        val meterStatus = getMeterStatus(customer.customer_id, meterNumber)
+            ?: customer.meters.find { it.meter_number == meterNumber }?.monthly_status
+        return when (meterStatus) {
+            "VERIFIED" -> "Meteran $meterNumber untuk bulan ini sudah terverifikasi oleh Admin. Pencatatan tidak dapat di-input lagi."
+            "PENDING" -> "Meteran $meterNumber untuk bulan ini sedang menunggu verifikasi Admin."
+            else -> null
+        }
+    }
+
+    fun getCustomerBlockReason(customer: Customer): String? {
+        val blockedMeters = customer.meters.filter {
+            val status = getMeterStatus(customer.customer_id, it.meter_number) ?: it.monthly_status
+            status == "VERIFIED" || status == "PENDING"
+        }
+        if (blockedMeters.isEmpty()) return null
+        if (blockedMeters.size == customer.meters.size) {
+            val allVerified = blockedMeters.all {
+                val status = getMeterStatus(customer.customer_id, it.meter_number) ?: it.monthly_status
+                status == "VERIFIED"
+            }
+            return if (allVerified) "Semua meteran sudah terverifikasi bulan ini."
+            else "Semua meteran sudah terisi (VERIFIED/PENDING) bulan ini."
+        }
+        val blockedNames = blockedMeters.map { it.meter_number }.joinToString(", ")
+        return "Meteran $blockedNames sudah terverifikasi/pending. Masih ada meteran yang bisa di-input."
+    }
+
+    fun getMeterWorkItems(): List<org.ukrida.voltmeter.data.model.MeterWorkItem> {
+        val result = mutableListOf<org.ukrida.voltmeter.data.model.MeterWorkItem>()
+        customers.value.forEach { customer ->
+            if (customer.meters.isNotEmpty()) {
+                customer.meters.forEachIndexed { index, meter ->
+                    val status = getMeterStatus(customer.customer_id, meter.meter_number)
+                    result.add(
+                        org.ukrida.voltmeter.data.model.MeterWorkItem(
+                            customer = customer,
+                            meter = meter,
+                            meterIndex = index,
+                            meterNumber = meter.meter_number,
+                            lastReading = meter.last_reading,
+                            status = status
+                        )
+                    )
+                }
+            } else {
+                val status = getMeterStatus(customer.customer_id, "") ?: customer.monthly_status
+                val defaultMeter = org.ukrida.voltmeter.data.model.Meter("MTR-${customer.customer_id}", customer.last_meter_reading)
+                result.add(
+                    org.ukrida.voltmeter.data.model.MeterWorkItem(
+                        customer = customer,
+                        meter = defaultMeter,
+                        meterIndex = 0,
+                        meterNumber = defaultMeter.meter_number,
+                        lastReading = defaultMeter.last_reading,
+                        status = status
+                    )
+                )
+            }
+        }
+        return result
+    }
+
+    fun selectMeterWorkItem(item: org.ukrida.voltmeter.data.model.MeterWorkItem) {
+        selectedCustomer.value = item.customer
+        currentMeterIndex.value = item.meterIndex
+        savedMeters.value = emptySet()
+        clearCurrentMeterInput()
+        visitStatus.value = "TERBACA_NORMAL"
     }
 
     // ============= CUSTOMER =============
@@ -741,6 +942,11 @@ class VoltMeterViewModel(
         val meter = customer.meters.getOrNull(currentMeterIndex.value)
         val pFile = photoFile.value
 
+        if (meter == null) {
+            errorMessage.value = "Meter yang dipilih tidak ditemukan"
+            return
+        }
+
         if (pFile == null) {
             errorMessage.value = "Foto wajib diambil"
             return
@@ -749,6 +955,19 @@ class VoltMeterViewModel(
         viewModelScope.launch {
             try {
                 isLoading.value = true
+                // Validasi ulang dari penyimpanan lokal tepat sebelum simpan. Ini menutup
+                // celah ketika halaman input dibuka lalu status meter berubah karena sync.
+                val currentYearMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+                val latestStatus = localRepo.getMeterStatus(customer.customer_id, meter.meter_number, currentYearMonth)
+                    ?: meter.monthly_status
+                if (latestStatus == "VERIFIED" || latestStatus == "PENDING") {
+                    errorMessage.value = if (latestStatus == "VERIFIED") {
+                        "Meteran ${meter.meter_number} sudah terverifikasi dan tidak dapat di-input lagi"
+                    } else {
+                        "Meteran ${meter.meter_number} sedang menunggu verifikasi Admin"
+                    }
+                    return@launch
+                }
                 isOnline.value = checkConnectivity()
 
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -804,6 +1023,26 @@ class VoltMeterViewModel(
                 // Simpan ke local database
                 localRepo.saveRecord(record)
 
+                // Update monthly_status di customer.meters langsung ke PENDING
+                val updatedCustomers = customers.value.map { cust ->
+                    if (cust.customer_id == customer.customer_id) {
+                        val updatedMeters = cust.meters.map { m ->
+                            if (m.meter_number == record.meter_number) {
+                                m.copy(monthly_status = "PENDING")
+                            } else m
+                        }
+                        cust.copy(meters = updatedMeters)
+                    } else cust
+                }
+                customers.value = updatedCustomers
+                // Update selectedCustomer juga
+                selectedCustomer.value?.let { sel ->
+                    if (sel.customer_id == customer.customer_id) {
+                        selectedCustomer.value = updatedCustomers.find { it.customer_id == customer.customer_id }
+                    }
+                }
+                localRepo.saveCustomers(updatedCustomers)
+
                 // Coba sync ke server jika online
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: ""
@@ -831,6 +1070,7 @@ class VoltMeterViewModel(
                 } else {
                     successMessage.value = "Pencatatan berhasil disimpan (offline)"
                 }
+                recordSavedEvent.value += 1
 
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Submit gagal", e)

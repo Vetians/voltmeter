@@ -90,6 +90,7 @@ fun VerificationList(viewModel: VoltMeterViewModel, records: List<MeterRecord>) 
     var selectedRecordId by remember { mutableStateOf("") }
     var selectedCustomerId by remember { mutableStateOf("") }
     var showFullImage by remember { mutableStateOf<String?>(null) }
+    val verifyingRecordId = viewModel.verifyingRecordId.value
 
     if (showFullImage != null) {
         Dialog(onDismissRequest = { showFullImage = null }) {
@@ -134,6 +135,7 @@ fun VerificationList(viewModel: VoltMeterViewModel, records: List<MeterRecord>) 
                             rejectNote = ""
                         }
                     },
+                    enabled = verifyingRecordId == null,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                 ) {
                     Text("Tolak")
@@ -157,7 +159,7 @@ fun VerificationList(viewModel: VoltMeterViewModel, records: List<MeterRecord>) 
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(records) { record ->
+            items(records, key = { it.record_id }) { record ->
                 val badgeColor = when (record.verification_status) {
                     "VERIFIED" -> Color(0xFF2E7D32)
                     "REJECTED" -> Color(0xFFC62828)
@@ -254,6 +256,7 @@ fun VerificationList(viewModel: VoltMeterViewModel, records: List<MeterRecord>) 
                                         selectedCustomerId = record.customer_id
                                         showRejectDialog = true
                                     },
+                                    enabled = verifyingRecordId == null,
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
                                 ) {
                                     Text("Tolak")
@@ -263,9 +266,10 @@ fun VerificationList(viewModel: VoltMeterViewModel, records: List<MeterRecord>) 
                                     onClick = {
                                         viewModel.verifyRecord(record.record_id, "VERIFIED", null, record.customer_id)
                                     },
+                                    enabled = verifyingRecordId == null,
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
                                 ) {
-                                    Text("Verifikasi")
+                                    Text(if (verifyingRecordId == record.record_id) "Memproses..." else "Verifikasi")
                                 }
                             }
                         }

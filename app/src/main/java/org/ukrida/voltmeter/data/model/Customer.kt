@@ -16,10 +16,20 @@ data class Customer(
 
 data class Meter(
     val meter_number: String = "",
-    val last_reading: Double = 0.0
+    val last_reading: Double = 0.0,
+    val monthly_status: String? = null
 )
 
 data class WorkOrderResponse(
     val work_order_id: String = "",
     val customers: List<Customer> = emptyList()
+)
+
+data class MeterWorkItem(
+    val customer: Customer,
+    val meter: Meter,
+    val meterIndex: Int,
+    val meterNumber: String,
+    val lastReading: Double,
+    val status: String? = null // "VERIFIED", "PENDING", "REJECTED", null
 )

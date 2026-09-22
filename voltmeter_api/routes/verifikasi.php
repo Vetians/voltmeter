@@ -24,26 +24,43 @@ if (!empty($data->record_id) && !empty($data->status)) {
     $status = $data->status; // 'VERIFIED' atau 'REJECTED'
     $note = isset($data->note) ? $data->note : null;
 
+    if (!in_array($status, ['VERIFIED', 'REJECTED'], true)) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "Status verifikasi tidak valid."]);
+        exit;
+    }
+
     try {
         // Update database
-        $query = "UPDATE meter_records SET verification_status = :status, verification_note = :note WHERE record_id = :id";
+        $query = "UPDATE meter_records SET verification_status = :status, verification_note = :note WHERE record_id = :id AND verification_status = 'PENDING'";
         $stmt = $db->prepare($query);
         
         $stmt->bindParam(':status', $status);
         $stmt->bindParam(':note', $note);
         $stmt->bindParam(':id', $record_id);
 
-        if ($stmt->execute()) {
+        if ($stmt->execute() && $stmt->rowCount() === 1) {
+            // Stand terakhir hanya boleh maju jika record disetujui. Untuk
+            // penolakan, kembalikan ke previous_reading agar input ulang memakai
+            // stand bulan lalu yang benar (juga memperbaiki data lama yang sempat maju).
+            $recordStmt = $db->prepare("SELECT customer_id, meter_number, previous_reading, current_reading FROM meter_records WHERE record_id = ?");
+            $recordStmt->execute([$record_id]);
+            $record = $recordStmt->fetch(PDO::FETCH_ASSOC);
+            if ($record && !empty($record['meter_number'])) {
+                $reading = $status === 'VERIFIED' ? $record['current_reading'] : $record['previous_reading'];
+                $meterStmt = $db->prepare("UPDATE meters SET last_reading = ? WHERE customer_id = ? AND meter_number = ?");
+                $meterStmt->execute([$reading, $record['customer_id'], $record['meter_number']]);
+            }
             http_response_code(200);
             echo json_encode([
                 "success" => true,
                 "message" => "Status verifikasi berhasil diperbarui."
             ]);
         } else {
-            http_response_code(503);
+            http_response_code(409);
             echo json_encode([
                 "success" => false,
-                "message" => "Gagal memperbarui status verifikasi."
+                "message" => "Record tidak ditemukan atau sudah diproses."
             ]);
         }
     } catch (PDOException $e) {

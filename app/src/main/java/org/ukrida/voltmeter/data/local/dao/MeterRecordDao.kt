@@ -134,4 +134,17 @@ interface MeterRecordDao {
 
     @Query("SELECT COUNT(*) FROM meter_records")
     suspend fun getCount(): Int
+
+    @Query("SELECT record_id, customer_id, meter_number, previous_reading, current_reading, usage_kwh, record_date, record_time, visit_status, '' AS photo_path, latitude, longitude, notes, recorded_by, verification_status, verification_note, customer_name, customer_address, isSynced, lastSyncTime FROM meter_records WHERE record_id = :recordId LIMIT 1")
+    suspend fun getRecordById(recordId: String): MeterRecordEntity?
+
+    @Query("""
+        SELECT verification_status FROM meter_records
+        WHERE customer_id = :customerId
+          AND meter_number = :meterNumber
+          AND substr(record_date, 1, 7) = :yearMonth
+        ORDER BY record_date DESC, record_time DESC, lastSyncTime DESC
+        LIMIT 1
+    """)
+    suspend fun getMeterStatus(customerId: String, meterNumber: String, yearMonth: String): String?
 }

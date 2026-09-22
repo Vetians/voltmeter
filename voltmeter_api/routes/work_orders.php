@@ -49,9 +49,34 @@ foreach ($rows as $row) {
     
     $metersData = [];
     foreach ($meters as $m) {
+        // Status harus dihitung per meter. Status pelanggan tunggal membuat meter
+        // lain ikut terbuka/terkunci saat pelanggan memiliki lebih dari satu meter.
+        $stmtMeterStatus = $db->prepare("
+            SELECT verification_status FROM meter_records
+            WHERE customer_id = ? AND meter_number = ?
+              AND MONTH(record_date) = ? AND YEAR(record_date) = ?
+            ORDER BY record_date DESC, record_time DESC, created_at DESC LIMIT 1
+        ");
+        $stmtMeterStatus->execute([$row['customer_id'], $m['meter_number'], $currentMonth, $currentYear]);
+        $meterStatusRow = $stmtMeterStatus->fetch();
+
+        // Sumber kebenaran stand adalah record terakhir yang VERIFIED. Jangan
+        // memakai meters.last_reading secara buta karena nilainya bisa sudah
+        // terlanjur berubah oleh record PENDING/REJECTED dari versi API lama.
+        $stmtVerifiedReading = $db->prepare("
+            SELECT current_reading FROM meter_records
+            WHERE customer_id = ? AND meter_number = ? AND verification_status = 'VERIFIED'
+            ORDER BY record_date DESC, record_time DESC, created_at DESC LIMIT 1
+        ");
+        $stmtVerifiedReading->execute([$row['customer_id'], $m['meter_number']]);
+        $verifiedReadingRow = $stmtVerifiedReading->fetch();
+        $lastVerifiedReading = $verifiedReadingRow
+            ? (float) $verifiedReadingRow['current_reading']
+            : (float) $m['last_reading'];
         $metersData[] = [
             'meter_number' => $m['meter_number'],
-            'last_reading' => (float) $m['last_reading']
+            'last_reading' => $lastVerifiedReading,
+            'monthly_status' => $meterStatusRow ? $meterStatusRow['verification_status'] : null
         ];
     }
 

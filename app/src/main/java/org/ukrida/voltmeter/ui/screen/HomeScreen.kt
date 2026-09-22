@@ -120,9 +120,15 @@ fun HomeScreen(
     }
 
     // Compute per-meter completion count
-    val totalMeters = remember(customers) {
-        customers.sumOf { it.meters.size }
+    val meterWorkItems = remember(customers, pendingRecords, verifiedRecords, rejectedRecords) {
+        viewModel.getMeterWorkItems()
     }
+
+    val totalMeters = remember(meterWorkItems) {
+        meterWorkItems.size
+    }
+
+    var blockedMeterReason by remember { mutableStateOf<String?>(null) }
 
     val cal = remember { Calendar.getInstance() }
     val currentMonth = cal.get(Calendar.MONTH)
@@ -377,30 +383,25 @@ fun HomeScreen(
         DropdownSection(
             title = "Daftar Kerja",
             icon = Icons.AutoMirrored.Filled.List,
-            count = customers.size,
+            count = meterWorkItems.size,
             expanded = expandedSection == "kerja",
             onToggle = { expandedSection = if (expandedSection == "kerja") null else "kerja" }
         ) {
-            if (customers.isEmpty()) {
+            if (meterWorkItems.isEmpty()) {
                 Text(
                     text = "Tidak ada data pekerjaan",
                     color = Color.Gray,
                     modifier = Modifier.padding(8.dp)
                 )
             } else {
-                customers.forEach { customer ->
-                    CustomerWorkCard(
-                        name = customer.name,
-                        address = customer.address,
-                        deadline = deadlines[customer.customer_id] ?: "-",
-                        monthlyStatus = customer.monthly_status,
+                meterWorkItems.forEach { item ->
+                    MeterWorkCard(
+                        item = item,
+                        deadline = deadlines[item.customer.customer_id] ?: "-",
                         onClick = {
-                            if (viewModel.canRecord(customer)) {
-                                viewModel.selectCustomer(customer)
-                                onCustomerClick(customer)
-                            } else {
-                                blockedCustomer = customer
-                            }
+                            viewModel.selectMeterWorkItem(item)
+                            viewModel.selectCustomer(item.customer)
+                            onCustomerClick(item.customer)
                         }
                     )
                 }
@@ -523,6 +524,19 @@ fun HomeScreen(
             text = { Text(reason ?: "Pencatatan tidak tersedia untuk pelanggan ini.") },
             confirmButton = {
                 TextButton(onClick = { blockedCustomer = null }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    blockedMeterReason?.let { reason ->
+        AlertDialog(
+            onDismissRequest = { blockedMeterReason = null },
+            title = { Text("Pencatatan Dibatasi") },
+            text = { Text(reason) },
+            confirmButton = {
+                TextButton(onClick = { blockedMeterReason = null }) {
                     Text("OK")
                 }
             }
@@ -653,6 +667,99 @@ private fun CustomerWorkCard(
                     fontSize = 11.sp,
                     color = statusColor,
                     fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MeterWorkCard(
+    item: org.ukrida.voltmeter.data.model.MeterWorkItem,
+    deadline: String,
+    onClick: () -> Unit
+) {
+    val statusColor = when (item.status) {
+        "VERIFIED" -> Color(0xFF4CAF50)
+        "PENDING" -> Color(0xFFFF9800)
+        "REJECTED" -> Color(0xFFF44336)
+        else -> Color(0xFF1565C0)
+    }
+    val statusLabel = when (item.status) {
+        "VERIFIED" -> "✓ Terverifikasi"
+        "PENDING" -> "⏳ Menunggu Verifikasi"
+        "REJECTED" -> "❌ Ditolak (Bisa Input Ulang)"
+        else -> "📝 Belum Dicatat"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when (item.status) {
+                "VERIFIED" -> Color(0xFFE8F5E9)
+                "PENDING" -> Color(0xFFFFF8E1)
+                "REJECTED" -> Color(0xFFFFEBEE)
+                else -> Color(0xFFF5F5F5)
+            }
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Meter: ${item.meterNumber}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color(0xFF1565C0)
+                )
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = statusColor.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = statusLabel,
+                        fontSize = 11.sp,
+                        color = statusColor,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${item.customer.name} (${item.customer.customer_id})",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp
+            )
+            Text(
+                text = item.customer.address,
+                fontSize = 12.sp,
+                color = Color.Gray,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Stand Lalu: ${item.lastReading} kWh",
+                    fontSize = 11.sp,
+                    color = Color.Gray
+                )
+                Text(
+                    text = "Deadline: $deadline",
+                    fontSize = 11.sp,
+                    color = Color(0xFFFF9800),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
