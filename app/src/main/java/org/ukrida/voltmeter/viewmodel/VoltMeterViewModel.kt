@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -540,21 +541,20 @@ class VoltMeterViewModel(
                     localRepo.saveCustomers(remoteCustomers)
                 }
 
-                // Load dari local database
-                localRepo.getAllCustomers().collectLatest { localCustomers ->
-                    customers.value = localCustomers
-                    selectedAdminCustomer.value?.let { selected ->
-                        selectedAdminCustomer.value = customers.value.find { it.customer_id == selected.customer_id } ?: selected
-                    }
+                // Baca SEKALI dengan first(), jangan collectLatest.
+                // Flow Room tidak pernah selesai, sehingga blok finally di bawah
+                // tidak pernah dijalankan dan isLoading macet -> tombol loading
+                // di layar lain (mis. "Tambah Petugas") berputar terus-menerus.
+                val localCustomers = localRepo.getAllCustomers().first()
+                customers.value = localCustomers
+                selectedAdminCustomer.value?.let { selected ->
+                    selectedAdminCustomer.value = customers.value.find { it.customer_id == selected.customer_id } ?: selected
                 }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load all customers gagal", e)
                 errorMessage.value = "Gagal memuat pelanggan: ${e.message}"
                 isOnline.value = false
-                // Tetap load dari local
-                localRepo.getAllCustomers().collectLatest { localCustomers ->
-                    customers.value = localCustomers
-                }
+                // Data lokal tetap tampil lewat kolektor permanen di loadLocalData().
             } finally {
                 isLoading.value = false
             }
