@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -19,7 +20,6 @@ import org.ukrida.voltmeter.data.model.User
 import org.ukrida.voltmeter.data.repository.LocalRepository
 import org.ukrida.voltmeter.data.repository.VoltMeterRepository
 import java.io.File
-import java.net.UnknownHostException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -177,7 +177,7 @@ class VoltMeterViewModel(
 
             // Cek apakah punya internet capability
             networkCapabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            networkCapabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    networkCapabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
         } catch (e: Exception) {
             Log.e("VOLTMETER", "Check connectivity error: ${e.message}")
             // Jika gagal cek, asumsikan online untuk mencoba API
@@ -382,6 +382,28 @@ class VoltMeterViewModel(
         }
     }
 
+    private suspend fun apiError(e: Exception, fallback: String): String {
+        if (e is retrofit2.HttpException) {
+            val body = try {
+                e.response()?.errorBody()?.string()
+            } catch (_: Exception) {
+                null
+            }
+            if (!body.isNullOrBlank()) {
+                val msg = try {
+                    val json = org.json.JSONObject(body)
+                    json.optString("message").ifEmpty { null }
+                } catch (_: Exception) {
+                    null
+                }
+                if (!msg.isNullOrBlank()) return msg
+                return "$fallback (HTTP ${e.code()})"
+            }
+            return "$fallback (HTTP ${e.code()})"
+        }
+        return "$fallback: ${e.message}"
+    }
+
     fun addCustomer(customer: Customer) {
         val token = currentUser.value?.token ?: return
         viewModelScope.launch {
@@ -391,7 +413,7 @@ class VoltMeterViewModel(
                 if (isOnline.value) {
                     val response = repo.addCustomer(token, customer)
                     if (!response.success) {
-                        errorMessage.value = response.message
+                        errorMessage.value = response.message.ifEmpty { "Gagal menambah pelanggan" }
                         isLoading.value = false
                         return@launch
                     }
@@ -400,7 +422,7 @@ class VoltMeterViewModel(
                 successMessage.value = "Pelanggan baru berhasil ditambahkan"
                 loadAllCustomers()
             } catch (e: Exception) {
-                errorMessage.value = "Gagal menambah pelanggan: ${e.message}"
+                errorMessage.value = apiError(e, "Gagal menambah pelanggan")
             } finally {
                 isLoading.value = false
             }
@@ -425,7 +447,7 @@ class VoltMeterViewModel(
                 successMessage.value = "Pelanggan berhasil diperbarui"
                 loadAllCustomers()
             } catch (e: Exception) {
-                errorMessage.value = "Gagal memperbarui pelanggan: ${e.message}"
+                errorMessage.value = apiError(e, "Gagal memperbarui pelanggan")
             } finally {
                 isLoading.value = false
             }
@@ -516,9 +538,12 @@ class VoltMeterViewModel(
 
                 successMessage.value = "Status verifikasi berhasil diperbarui"
                 loadCustomerHistory(customerId)
-                loadPendingRecords(userId)
-                loadVerifiedRecords(userId)
-                loadRejectedRecords(userId)
+                // Admin melihat semua laporan. Jangan filter memakai ID Admin,
+                // karena laporan tersebut dibuat oleh surveyor dan akan terlihat
+                // seperti "hilang" setelah satu record diproses.
+                loadPendingRecords()
+                loadVerifiedRecords()
+                loadRejectedRecords()
             } catch (e: Exception) {
                 errorMessage.value = "Gagal memverifikasi data: ${e.message}"
             } finally {
@@ -540,21 +565,20 @@ class VoltMeterViewModel(
                     localRepo.saveCustomers(remoteCustomers)
                 }
 
-                // Load dari local database
-                localRepo.getAllCustomers().collectLatest { localCustomers ->
-                    customers.value = localCustomers
-                    selectedAdminCustomer.value?.let { selected ->
-                        selectedAdminCustomer.value = customers.value.find { it.customer_id == selected.customer_id } ?: selected
-                    }
+                // Baca SEKALI dengan first(), jangan collectLatest.
+                // Flow Room tidak pernah selesai, sehingga blok finally di bawah
+                // tidak pernah dijalankan dan isLoading macet -> tombol loading
+                // di layar lain (mis. "Tambah Petugas") berputar terus-menerus.
+                val localCustomers = localRepo.getAllCustomers().first()
+                customers.value = localCustomers
+                selectedAdminCustomer.value?.let { selected ->
+                    selectedAdminCustomer.value = customers.value.find { it.customer_id == selected.customer_id } ?: selected
                 }
             } catch (e: Exception) {
                 Log.e("VOLTMETER", "Load all customers gagal", e)
                 errorMessage.value = "Gagal memuat pelanggan: ${e.message}"
                 isOnline.value = false
-                // Tetap load dari local
-                localRepo.getAllCustomers().collectLatest { localCustomers ->
-                    customers.value = localCustomers
-                }
+                // Data lokal tetap tampil lewat kolektor permanen di loadLocalData().
             } finally {
                 isLoading.value = false
             }

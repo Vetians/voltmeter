@@ -8,13 +8,28 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method === 'POST') {
     $data = json_decode(file_get_contents("php://input"));
 
-    if (
-        empty($data->customer_id) || empty($data->name) || empty($data->address) ||
-        empty($data->power_va) || empty($data->tariff) ||
-        empty($data->meters) || !is_array($data->meters) || count($data->meters) === 0
-    ) {
+    if (!isset($data)) {
         http_response_code(400);
-        echo json_encode(["message" => "Data tidak lengkap."]);
+        echo json_encode(["success" => false, "message" => "Request body kosong atau bukan JSON valid."]);
+        exit();
+    }
+
+    $missing = [];
+    if (empty($data->customer_id)) $missing[] = "customer_id";
+    if (empty($data->name)) $missing[] = "name";
+    if (empty($data->address)) $missing[] = "address";
+    if (!isset($data->power_va) || (int) $data->power_va <= 0) $missing[] = "power_va";
+    if (empty($data->tariff)) $missing[] = "tariff";
+    if (empty($data->meters) || !is_array($data->meters) || count($data->meters) === 0 || empty($data->meters[0]->meter_number)) {
+        $missing[] = "meters";
+    }
+
+    if (!empty($missing)) {
+        http_response_code(400);
+        echo json_encode([
+            "success" => false,
+            "message" => "Data tidak lengkap: " . implode(", ", $missing)
+        ]);
         exit();
     }
 
@@ -22,19 +37,43 @@ if ($method === 'POST') {
     $meterNumber = $data->meters[0]->meter_number;
 
     $workOrderId = $data->work_order_id ?? '';
+    $currentMonth = (int) date('m');
+    $currentYear = (int) date('Y');
+
     if (empty($workOrderId)) {
-        $currentMonth = (int) date('m');
-        $currentYear = (int) date('Y');
-        $stmtWo = $db->prepare("SELECT work_order_id FROM work_orders WHERE month = ? AND year = ? LIMIT 1");
+        // 1) Work order bulan ini
+        $stmtWo = $db->prepare("SELECT work_order_id FROM work_orders WHERE month = ? AND year = ? AND status = 'active' LIMIT 1");
         $stmtWo->execute([$currentMonth, $currentYear]);
         $wo = $stmtWo->fetch();
         if ($wo) {
             $workOrderId = $wo['work_order_id'];
-        } else {
-            http_response_code(400);
-            echo json_encode(["message" => "Gagal: Tidak ada Work Order aktif bulan ini."]);
-            exit();
         }
+    }
+
+    if (empty($workOrderId)) {
+        // 2) Fallback: work order active terbaru (sama seperti GET)
+        $stmtWo = $db->prepare("SELECT work_order_id FROM work_orders WHERE status = 'active' ORDER BY year DESC, month DESC LIMIT 1");
+        $stmtWo->execute();
+        $wo = $stmtWo->fetch();
+        if ($wo) {
+            $workOrderId = $wo['work_order_id'];
+        }
+    }
+
+    if (empty($workOrderId)) {
+        // 3) Belum ada work order sama sekali → buat untuk bulan ini
+        $workOrderId = sprintf('WO-%d%02d-001', $currentYear, $currentMonth);
+        $assignedTo = 'USR001';
+        try {
+            $stmtUser = $db->prepare("SELECT user_id FROM users WHERE role = 'admin' LIMIT 1");
+            $stmtUser->execute();
+            $admin = $stmtUser->fetch();
+            if ($admin) $assignedTo = $admin['user_id'];
+        } catch (PDOException $e) {
+            // biarkan default
+        }
+        $stmtNewWo = $db->prepare("INSERT INTO work_orders (work_order_id, month, year, assigned_to, status) VALUES (?, ?, ?, ?, 'active')");
+        $stmtNewWo->execute([$workOrderId, $currentMonth, $currentYear, $assignedTo]);
     }
 
     try {

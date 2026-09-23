@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -345,7 +346,15 @@ fun EditCustomerDialog(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private val VA_PRESETS = listOf(900, 1300, 2200, 3500, 5500, 6600, 7700, 10600, 11000)
+
+private fun classifyTariff(va: Int): String = when {
+    va <= 2200 -> "R1"
+    va <= 5500 -> "R2"
+    else -> "R3"
+}
+
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun AddCustomerDialog(
     onDismiss: () -> Unit,
@@ -354,9 +363,13 @@ fun AddCustomerDialog(
     var customerId by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
-    var powerVa by remember { mutableStateOf("") }
-    var tariff by remember { mutableStateOf("") }
+    var selectedVa by remember { mutableStateOf<Int?>(null) }
+    var customVa by remember { mutableStateOf("") }
+    var useCustomVa by remember { mutableStateOf(false) }
     var meterNumber by remember { mutableStateOf("") }
+
+    val effectiveVa = if (useCustomVa) customVa.toIntOrNull() else selectedVa
+    val tariff = effectiveVa?.let { classifyTariff(it) } ?: ""
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -400,23 +413,58 @@ fun AddCustomerDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Daya (VA)",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.DarkGray
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    VA_PRESETS.forEach { va ->
+                        FilterChip(
+                            selected = !useCustomVa && selectedVa == va,
+                            onClick = {
+                                useCustomVa = false
+                                selectedVa = va
+                            },
+                            label = { Text("$va VA", fontSize = 12.sp) }
+                        )
+                    }
+                    FilterChip(
+                        selected = useCustomVa,
+                        onClick = { useCustomVa = true },
+                        label = { Text("Lainnya", fontSize = 12.sp) }
+                    )
+                }
+
+                if (useCustomVa) {
                     OutlinedTextField(
-                        value = powerVa,
-                        onValueChange = { powerVa = it },
+                        value = customVa,
+                        onValueChange = { customVa = it },
                         label = { Text("Daya (VA)") },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
-                    OutlinedTextField(
-                        value = tariff,
-                        onValueChange = { tariff = it },
-                        label = { Text("Tarif (R1/R2)") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
                 }
+
+                OutlinedTextField(
+                    value = tariff,
+                    onValueChange = {},
+                    label = { Text("Golongan Tarif") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    readOnly = true,
+                    enabled = effectiveVa != null,
+                    supportingText = {
+                        Text(
+                            text = if (effectiveVa != null) "Otomatis dari daya ${effectiveVa} VA" else "Pilih daya dahulu"
+                        )
+                    }
+                )
 
                 OutlinedTextField(
                     value = meterNumber,
@@ -442,14 +490,16 @@ fun AddCustomerDialog(
                                 customer_id = customerId,
                                 name = name,
                                 address = address,
-                                power_va = powerVa.toIntOrNull() ?: 0,
+                                power_va = effectiveVa ?: 0,
                                 tariff = tariff,
                                 meters = listOf(Meter(meter_number = meterNumber, last_reading = 0.0))
                             )
                             onSave(newCustomer)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
-                        enabled = customerId.isNotBlank() && name.isNotBlank() && meterNumber.isNotBlank()
+                        enabled = customerId.isNotBlank() && name.isNotBlank() &&
+                                address.isNotBlank() && meterNumber.isNotBlank() &&
+                                effectiveVa != null
                     ) {
                         Text("Simpan")
                     }

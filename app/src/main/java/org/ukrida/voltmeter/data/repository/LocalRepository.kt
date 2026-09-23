@@ -129,39 +129,36 @@ class LocalRepository(context: Context) {
 
     suspend fun replaceSyncedRecords(records: List<MeterRecord>, recordedBy: String? = null, status: String? = null) {
         if (recordedBy != null && status != null) {
-            meterRecordDao.deleteSyncedByUserAndStatus(recordedBy, status)
+            meterRecordDao.replaceSyncedByUserAndStatusTx(records.map { it.toEntity() }, recordedBy, status)
         } else if (recordedBy != null) {
-            meterRecordDao.deleteSyncedByUser(recordedBy)
+            meterRecordDao.replaceSyncedByUserTx(records.map { it.toEntity() }, recordedBy)
         } else if (status != null) {
-            meterRecordDao.deleteSyncedByStatus(status)
+            meterRecordDao.replaceSyncedByStatusTx(records.map { it.toEntity() }, status)
         } else {
-            meterRecordDao.deleteAllSynced()
+            meterRecordDao.replaceAllSyncedTx(records.map { it.toEntity() })
         }
-        meterRecordDao.insertAll(records.map { it.toEntity() })
     }
 
     /**
      * Menghapus SEMUA records (isSynced=0 dan isSynced=1) untuk kombinasi user+status tertentu,
-     * lalu insert records terbaru dari server.
-     *
-     * Digunakan saat load dari server agar records offline lama (isSynced=0) tidak muncul
-     * bersamaan dengan versi server → mencegah duplikat pending.
+     * lalu insert records terbaru dari server — dalam 1 transaksi Room agar Flow
+     * tidak pernah emit list kosong di tengah operasi.
      */
     suspend fun replaceAllRecordsByUserAndStatus(
         records: List<MeterRecord>,
         recordedBy: String? = null,
         status: String? = null
     ) {
+        val entities = records.map { it.toEntity() }
         if (recordedBy != null && status != null) {
-            meterRecordDao.deleteAllByUserAndStatus(recordedBy, status)
+            meterRecordDao.replaceAllByUserAndStatusTx(entities, recordedBy, status)
         } else if (recordedBy != null) {
-            meterRecordDao.deleteAllByUser(recordedBy)
+            meterRecordDao.replaceAllByUserTx(entities, recordedBy)
         } else if (status != null) {
-            meterRecordDao.deleteAllByStatus(status)
+            meterRecordDao.replaceAllByStatusTx(entities, status)
         } else {
-            meterRecordDao.deleteAll()
+            meterRecordDao.replaceAllTx(entities)
         }
-        meterRecordDao.insertAll(records.map { it.toEntity() })
     }
 
     suspend fun getUnsyncedRecords(): List<MeterRecord> {

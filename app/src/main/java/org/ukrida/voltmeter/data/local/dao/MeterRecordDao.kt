@@ -132,6 +132,56 @@ interface MeterRecordDao {
     @Query("DELETE FROM meter_records WHERE verification_status = :status")
     suspend fun deleteAllByStatus(status: String)
 
+    // Hapus + insert dalam 1 transaksi agar Flow tidak pernah emit list kosong
+    // di tengah operasi (menyebabkan item "hilang" sesaat lalu muncul lagi).
+    @androidx.room.Transaction
+    suspend fun replaceAllByStatusTx(records: List<MeterRecordEntity>, status: String) {
+        deleteAllByStatus(status)
+        insertAll(records)
+    }
+
+    @androidx.room.Transaction
+    suspend fun replaceAllByUserAndStatusTx(records: List<MeterRecordEntity>, userId: String, status: String) {
+        deleteAllByUserAndStatus(userId, status)
+        insertAll(records)
+    }
+
+    @androidx.room.Transaction
+    suspend fun replaceAllByUserTx(records: List<MeterRecordEntity>, userId: String) {
+        deleteAllByUser(userId)
+        insertAll(records)
+    }
+
+    @androidx.room.Transaction
+    suspend fun replaceAllTx(records: List<MeterRecordEntity>) {
+        deleteAll()
+        insertAll(records)
+    }
+
+    @androidx.room.Transaction
+    suspend fun replaceSyncedByUserAndStatusTx(records: List<MeterRecordEntity>, userId: String, status: String) {
+        deleteSyncedByUserAndStatus(userId, status)
+        insertAll(records)
+    }
+
+    @androidx.room.Transaction
+    suspend fun replaceSyncedByUserTx(records: List<MeterRecordEntity>, userId: String) {
+        deleteSyncedByUser(userId)
+        insertAll(records)
+    }
+
+    @androidx.room.Transaction
+    suspend fun replaceSyncedByStatusTx(records: List<MeterRecordEntity>, status: String) {
+        deleteSyncedByStatus(status)
+        insertAll(records)
+    }
+
+    @androidx.room.Transaction
+    suspend fun replaceAllSyncedTx(records: List<MeterRecordEntity>) {
+        deleteAllSynced()
+        insertAll(records)
+    }
+
     @Query("SELECT COUNT(*) FROM meter_records")
     suspend fun getCount(): Int
 
