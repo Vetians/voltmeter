@@ -1148,11 +1148,14 @@ class VoltMeterViewModel(
                 if (isOnline.value) {
                     val token = currentUser.value?.token ?: return@launch
                     val remoteRecords = repo.getTodayRecords(token)
+                    // Hapus synced milik user sendiri, insert semua record hari ini
+                    // (termasuk milik surveyor lain) agar tampilan sama untuk semua akun.
                     localRepo.replaceSyncedRecords(remoteRecords, currentUser.value?.user_id)
                 }
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val today = dateFormat.format(Date())
-                localRepo.getRecordsByUserId(currentUser.value?.user_id ?: "").collectLatest { records ->
+                // Ambil semua record (tanpa filter user) → data hari ini sama untuk semua surveyor.
+                localRepo.getAllRecords().collectLatest { records ->
                     todayRecords.value = records.filter { it.record_date == today }
                 }
             } catch (e: Exception) {

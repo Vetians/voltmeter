@@ -114,9 +114,11 @@ fun HomeScreen(
         viewModel.syncWorkOrders()
         viewModel.syncUnsyncedRecords()
         viewModel.loadTodayRecords()
-        viewModel.loadPendingRecords(user?.user_id)
-        viewModel.loadVerifiedRecords(user?.user_id)
-        viewModel.loadRejectedRecords(user?.user_id)
+        // Tanpa filter user_id → semua surveyor melihat data yang sama
+        // (mereka mengerjakan task bersama).
+        viewModel.loadPendingRecords()
+        viewModel.loadVerifiedRecords()
+        viewModel.loadRejectedRecords()
     }
 
     val selectedMonth = viewModel.selectedSurveyorMonth.value
