@@ -119,9 +119,19 @@ fun HomeScreen(
         viewModel.loadRejectedRecords(user?.user_id)
     }
 
-    // Compute per-meter completion count
-    val meterWorkItems = remember(customers, pendingRecords, verifiedRecords, rejectedRecords) {
-        viewModel.getMeterWorkItems()
+    val selectedMonth = viewModel.selectedSurveyorMonth.value
+    val selectedYear = viewModel.selectedSurveyorYear.value
+
+    // Compute per-meter completion count untuk bulan yang dipilih.
+    // Status diambil dari record bulan tersebut → pergantian bulan otomatis reset.
+    val meterWorkItems = remember(customers, pendingRecords, verifiedRecords, rejectedRecords, selectedMonth, selectedYear) {
+        viewModel.getMeterWorkItems(selectedMonth, selectedYear)
+    }
+
+    // Daftar Kerja hanya berisi meter yang BELUM dikerjakan (null) atau REJECTED
+    // (bisa input ulang). Yang sudah PENDING/VERIFIED pindah ke kategori masing-masing.
+    val daftarKerja = remember(meterWorkItems) {
+        meterWorkItems.filter { it.status == null || it.status == "REJECTED" }
     }
 
     val totalMeters = remember(meterWorkItems) {
@@ -138,9 +148,6 @@ fun HomeScreen(
         "Juli", "Agustus", "September", "Oktober", "November", "Desember"
     )
     val monthName = monthNames[currentMonth]
-
-    val selectedMonth = viewModel.selectedSurveyorMonth.value
-    val selectedYear = viewModel.selectedSurveyorYear.value
 
     val filterMonthNames = listOf("Semua Bulan", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")
     var expandedMonthFilter by remember { mutableStateOf(false) }
@@ -383,18 +390,19 @@ fun HomeScreen(
         DropdownSection(
             title = "Daftar Kerja",
             icon = Icons.AutoMirrored.Filled.List,
-            count = meterWorkItems.size,
+            count = daftarKerja.size,
             expanded = expandedSection == "kerja",
             onToggle = { expandedSection = if (expandedSection == "kerja") null else "kerja" }
         ) {
-            if (meterWorkItems.isEmpty()) {
+            if (daftarKerja.isEmpty()) {
                 Text(
-                    text = "Tidak ada data pekerjaan",
+                    text = if (meterWorkItems.isEmpty()) "Tidak ada data pekerjaan"
+                    else "Semua pekerjaan bulan ini sudah diproses",
                     color = Color.Gray,
                     modifier = Modifier.padding(8.dp)
                 )
             } else {
-                meterWorkItems.forEach { item ->
+                daftarKerja.forEach { item ->
                     MeterWorkCard(
                         item = item,
                         deadline = deadlines[item.customer.customer_id] ?: "-",

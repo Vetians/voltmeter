@@ -15,8 +15,8 @@ android {
         applicationId = "org.ukrida.voltmeter"
         minSdk = 27
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.3"
+        versionCode = 6
+        versionName = "1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

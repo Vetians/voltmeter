@@ -699,6 +699,9 @@ class VoltMeterViewModel(
 
                     successMessage.value = "Berhasil sync ${allCustomers.size} data pelanggan"
                 } else {
+                    // Recompute juga saat offline agar pergantian bulan langsung
+                    // me-reset status bulan lama dari record lokal.
+                    recomputeMeterStatuses()
                     errorMessage.value = "Tidak ada koneksi internet. Menampilkan data lokal."
                 }
             } catch (e: Exception) {
@@ -716,7 +719,8 @@ class VoltMeterViewModel(
         val updatedCustomers = customers.value.map { customer ->
             val updatedMeters = customer.meters.map { meter ->
                 val dbStatus = localRepo.getMeterStatus(customer.customer_id, meter.meter_number, currentYearMonth)
-                if (dbStatus != null && dbStatus != meter.monthly_status) {
+                // dbStatus null = belum ada record bulan berjalan → reset status bulan lama.
+                if (dbStatus != meter.monthly_status) {
                     meter.copy(monthly_status = dbStatus)
                 } else meter
             }
@@ -822,17 +826,21 @@ class VoltMeterViewModel(
     }
 
     // ============= RECORDING RULES =============
-    fun getMeterStatus(customerId: String, meterNumber: String): String? {
+    fun getMeterStatus(customerId: String, meterNumber: String, yearMonth: String? = null): String? {
         if (meterNumber.isEmpty()) return null
         val currentYearMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
-        // Prioritaskan record bulan berjalan di database. Dengan ini status REJECTED
-        // dari bulan sebelumnya tidak dapat membuka meter yang VERIFIED bulan ini.
+        val queryYearMonth = yearMonth ?: currentYearMonth
+        // Prioritaskan record bulan yang ditanyakan di database. Dengan ini status REJECTED
+        // dari bulan sebelumnya tidak dapat membuka meter yang VERIFIED bulan ini,
+        // dan pergantian bulan otomatis me-reset status (null = belum dicatat).
         val statusFromRecord = kotlinx.coroutines.runBlocking {
-            localRepo.getMeterStatus(customerId, meterNumber, currentYearMonth)
+            localRepo.getMeterStatus(customerId, meterNumber, queryYearMonth)
         }
         if (statusFromRecord != null) return statusFromRecord
 
-        // Fallback ke status per meter yang datang dari hasil sync server.
+        // Fallback ke status per meter dari sync server HANYA untuk bulan berjalan,
+        // karena monthly_status yang disimpan selalu dihitung untuk bulan berjalan.
+        if (queryYearMonth != currentYearMonth) return null
         val cust = customers.value.find { it.customer_id == customerId }
         val meter = cust?.meters?.find { it.meter_number == meterNumber }
         return meter?.monthly_status
@@ -890,12 +898,18 @@ class VoltMeterViewModel(
         return "Meteran $blockedNames sudah terverifikasi/pending. Masih ada meteran yang bisa di-input."
     }
 
-    fun getMeterWorkItems(): List<org.ukrida.voltmeter.data.model.MeterWorkItem> {
+    fun getMeterWorkItems(month: Int? = null, year: Int? = null): List<org.ukrida.voltmeter.data.model.MeterWorkItem> {
+        val currentYearMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+        // Tanpa filter bulan ("Semua Bulan") → pakai bulan berjalan.
+        val queryYearMonth = if (month != null) {
+            String.format(Locale.US, "%04d-%02d", year ?: java.util.Calendar.getInstance().get(java.util.Calendar.YEAR), month)
+        } else currentYearMonth
+
         val result = mutableListOf<org.ukrida.voltmeter.data.model.MeterWorkItem>()
         customers.value.forEach { customer ->
             if (customer.meters.isNotEmpty()) {
                 customer.meters.forEachIndexed { index, meter ->
-                    val status = getMeterStatus(customer.customer_id, meter.meter_number)
+                    val status = getMeterStatus(customer.customer_id, meter.meter_number, queryYearMonth)
                     result.add(
                         org.ukrida.voltmeter.data.model.MeterWorkItem(
                             customer = customer,
@@ -908,7 +922,7 @@ class VoltMeterViewModel(
                     )
                 }
             } else {
-                val status = getMeterStatus(customer.customer_id, "") ?: customer.monthly_status
+                val status = if (queryYearMonth == currentYearMonth) customer.monthly_status else null
                 val defaultMeter = org.ukrida.voltmeter.data.model.Meter("MTR-${customer.customer_id}", customer.last_meter_reading)
                 result.add(
                     org.ukrida.voltmeter.data.model.MeterWorkItem(
